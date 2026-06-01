@@ -351,18 +351,23 @@ body {
 }
 
 .dialogue-empty {
+  flex: 1;
+  overflow-y: auto;
   text-align: center;
   color: var(--color-muted);
   font-style: italic;
-  margin-top: 80px;
+  padding-top: 80px;
   font-size: 15px;
 }
 
 /* ===== Dialogue list ===== */
 .dialogue-list {
+  flex: 1;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0;
+  padding: 36px 64px;
 }
 
 .dialogue-entry {
@@ -464,6 +469,39 @@ body {
   transition: border-color 0.15s;
 }
 .line-input:focus { border-color: var(--color-primary); background: var(--color-surface); }
+
+/* ===== Input bar alternate class names (Editor.tsx) ===== */
+.input-bar-speaker {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.input-bar-speaker.narrator { color: var(--color-narrator); font-style: italic; }
+
+.input-bar-row {
+  flex: 1;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.input-bar-field {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: var(--font-mono);
+  background: var(--color-bg);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input-bar-field:focus { border-color: var(--color-primary); background: var(--color-surface); }
+.input-bar-field.narrator-mode { font-style: italic; border-color: #8b7355; }
 
 /* ===== Scrollbar ===== */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

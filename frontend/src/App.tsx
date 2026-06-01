@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { listProjects, createProject, deleteProject, getProject } from './api';
+import { listProjects, createProject, deleteProject } from './api';
 import type { ProjectSummary } from './types';
 import { Editor } from './components/Editor';
 
