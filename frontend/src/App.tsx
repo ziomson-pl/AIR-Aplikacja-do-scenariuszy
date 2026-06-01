@@ -2,13 +2,17 @@ import { useState, useEffect } from 'react';
 import { listProjects, createProject, deleteProject } from './api';
 import type { ProjectSummary } from './types';
 import { Editor } from './components/Editor';
+import { Toasts } from './components/Toasts';
+import { useToasts } from './hooks/useToasts';
+import { formatRelative } from './utils/format';
 
 export default function App() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const { toasts, notify, dismiss } = useToasts();
 
   useEffect(() => {
     load();
@@ -19,7 +23,7 @@ export default function App() {
       setLoading(true);
       setProjects(await listProjects());
     } catch {
-      setError('Nie można załadować projektów. Czy backend działa?');
+      notify('Nie można połączyć się z serwerem. Czy backend działa?', 'error');
     } finally {
       setLoading(false);
     }
@@ -28,25 +32,29 @@ export default function App() {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     const title = newTitle.trim();
-    if (!title) return;
+    if (!title || creating) return;
     try {
+      setCreating(true);
       const p = await createProject(title);
       setNewTitle('');
       setActiveProjectId(p.id);
     } catch {
-      setError('Błąd podczas tworzenia projektu.');
+      notify('Błąd podczas tworzenia projektu.', 'error');
+    } finally {
+      setCreating(false);
     }
   }
 
-  async function handleDelete(id: string, e: React.MouseEvent) {
+  async function handleDelete(id: string, title: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm('Usunąć projekt?')) return;
+    if (!confirm(`Usunąć projekt „${title}"? Tej operacji nie można cofnąć.`)) return;
     try {
       await deleteProject(id);
       if (activeProjectId === id) setActiveProjectId(null);
+      notify('Projekt usunięty.', 'success');
       await load();
     } catch {
-      setError('Błąd podczas usuwania projektu.');
+      notify('Błąd podczas usuwania projektu.', 'error');
     }
   }
 
@@ -54,53 +62,106 @@ export default function App() {
     return (
       <Editor
         projectId={activeProjectId}
-        onBack={() => { setActiveProjectId(null); load(); }}
+        onBack={() => {
+          setActiveProjectId(null);
+          load();
+        }}
       />
     );
   }
 
   return (
     <div className="home">
-      <h1 className="home-title">AIR — Aplikacja do Scenariuszy</h1>
+      <Toasts toasts={toasts} onDismiss={dismiss} />
+
+      <header className="home-header">
+        <div className="home-logo">🎬</div>
+        <h1 className="home-title">AIR — Aplikacja do Scenariuszy</h1>
+        <p className="home-tagline">
+          Pisz dialogi filmowe bez rozpraszania się — wybierasz postać, wpisujesz kwestię,
+          a my zajmujemy się resztą.
+        </p>
+      </header>
 
       <form className="create-form" onSubmit={handleCreate}>
         <input
           className="create-input"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
-          placeholder="Tytuł nowego projektu..."
+          placeholder="Tytuł nowego scenariusza…"
+          maxLength={200}
         />
-        <button className="btn btn-primary" type="submit" disabled={!newTitle.trim()}>
-          Utwórz projekt
+        <button className="btn btn-primary" type="submit" disabled={!newTitle.trim() || creating}>
+          {creating ? 'Tworzę…' : '+ Nowy scenariusz'}
         </button>
       </form>
 
-      {error && <p className="error-msg">{error}</p>}
+      <div className="home-section-head">
+        <h2 className="home-section-title">Twoje scenariusze</h2>
+        {projects.length > 0 && <span className="home-count">{projects.length}</span>}
+      </div>
 
       {loading ? (
-        <p className="muted">Ładowanie...</p>
+        <div className="home-skeleton">
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
+        </div>
       ) : projects.length === 0 ? (
-        <p className="muted">Brak projektów. Utwórz pierwszy!</p>
+        <div className="empty-state">
+          <div className="empty-state-icon">✍️</div>
+          <p className="empty-state-title">Jeszcze nic tu nie ma</p>
+          <p className="empty-state-text">Utwórz swój pierwszy scenariusz powyżej i zacznij pisać.</p>
+        </div>
       ) : (
         <ul className="project-list">
           {projects.map((p) => (
-            <li key={p.id} className="project-item" onClick={() => setActiveProjectId(p.id)}>
-              <div className="project-info">
+            <li key={p.id} className="project-card" onClick={() => setActiveProjectId(p.id)}>
+              <div className="project-card-main">
                 <span className="project-name">{p.title}</span>
                 <span className="project-meta">
-                  {p.characters.length} postaci · {p._count.lines} kwestii
+                  {p.characters.length} {pluralChars(p.characters.length)} ·{' '}
+                  {p._count.lines} {pluralLines(p._count.lines)} · {formatRelative(p.updatedAt)}
                 </span>
               </div>
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={(e) => handleDelete(p.id, e)}
-              >
-                Usuń
-              </button>
+              <div className="project-card-side">
+                <div className="char-chips">
+                  {p.characters.slice(0, 5).map((c) => (
+                    <span
+                      key={c.id}
+                      className="char-chip"
+                      style={{ background: c.color }}
+                      title={c.name}
+                    />
+                  ))}
+                  {p.characters.length > 5 && (
+                    <span className="char-chip-more">+{p.characters.length - 5}</span>
+                  )}
+                </div>
+                <button
+                  className="icon-btn icon-btn--danger"
+                  title="Usuń projekt"
+                  onClick={(e) => handleDelete(p.id, p.title, e)}
+                >
+                  🗑
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
     </div>
   );
+}
+
+function pluralChars(n: number): string {
+  if (n === 1) return 'postać';
+  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return 'postacie';
+  return 'postaci';
+}
+
+function pluralLines(n: number): string {
+  if (n === 1) return 'kwestia';
+  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return 'kwestie';
+  return 'kwestii';
 }

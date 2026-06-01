@@ -1,6 +1,12 @@
+export type LineType = 'dialogue' | 'narrator' | 'scene';
+
+/** What the composer is currently set to produce. */
+export type ComposeMode = LineType;
+
 export interface Character {
   id: string;
   name: string;
+  color: string;
   projectId: string;
 }
 
@@ -10,7 +16,7 @@ export interface DialogueLine {
   characterId: string | null;
   text: string;
   order: number;
-  type: 'dialogue' | 'narrator';
+  type: LineType;
   character?: Character | null;
 }
 
@@ -36,8 +42,8 @@ export interface ProjectSummary {
 
 export interface EditorState {
   project: Project | null;
-  activeSpeakerId: string | null; // null = narrator mode
-  narratorMode: boolean;
+  activeSpeakerId: string | null;
+  composeMode: ComposeMode;
   loading: boolean;
   error: string | null;
 }
@@ -47,9 +53,12 @@ export type EditorAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'ADD_CHARACTER'; payload: Character }
+  | { type: 'UPDATE_CHARACTER'; payload: Character }
   | { type: 'REMOVE_CHARACTER'; payload: string }
   | { type: 'SET_ACTIVE_SPEAKER'; payload: string }
-  | { type: 'TOGGLE_NARRATOR_MODE' }
+  | { type: 'SET_COMPOSE_MODE'; payload: ComposeMode }
   | { type: 'ADD_LINE'; payload: DialogueLine }
+  | { type: 'UPDATE_LINE'; payload: DialogueLine }
   | { type: 'REMOVE_LINE'; payload: string }
+  | { type: 'REORDER_LINES'; payload: DialogueLine[] }
   | { type: 'UPDATE_PROJECT_TITLE'; payload: string };

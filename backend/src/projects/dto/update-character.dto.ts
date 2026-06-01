@@ -1,10 +1,11 @@
 import { IsHexColor, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
-export class CreateCharacterDto {
+export class UpdateCharacterDto {
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(60)
-  name: string;
+  name?: string;
 
   @IsOptional()
   @IsHexColor()

@@ -8,10 +8,10 @@ datasource db {
 }
 
 model Project {
-  id         String          @id @default(cuid())
+  id         String         @id @default(cuid())
   title      String
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
   characters Character[]
   lines      DialogueLine[]
 }
@@ -19,20 +19,23 @@ model Project {
 model Character {
   id        String         @id @default(cuid())
   name      String
+  color     String         @default("#6366f1")
   projectId String
   project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   lines     DialogueLine[]
+
+  @@index([projectId])
 }
 
 model DialogueLine {
-  id          String      @id @default(cuid())
+  id          String     @id @default(cuid())
   projectId   String
   characterId String?
   text        String
   order       Int
   type        LineType
-  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  character   Character?  @relation(fields: [characterId], references: [id], onDelete: SetNull)
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  character   Character? @relation(fields: [characterId], references: [id], onDelete: SetNull)
 
   @@index([projectId, order])
 }
@@ -40,4 +43,5 @@ model DialogueLine {
 enum LineType {
   dialogue
   narrator
+  scene
 }

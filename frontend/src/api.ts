@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Project, ProjectSummary, Character, DialogueLine } from './types';
+import type { Project, ProjectSummary, Character, DialogueLine, LineType } from './types';
 
 const api = axios.create({ baseURL: 'http://localhost:3000' });
 
@@ -27,8 +27,21 @@ export async function deleteProject(id: string): Promise<void> {
   await api.delete(`/projects/${id}`);
 }
 
-export async function addCharacter(projectId: string, name: string): Promise<Character> {
-  const { data } = await api.post(`/projects/${projectId}/characters`, { name });
+export async function addCharacter(
+  projectId: string,
+  name: string,
+  color?: string,
+): Promise<Character> {
+  const { data } = await api.post(`/projects/${projectId}/characters`, { name, color });
+  return data;
+}
+
+export async function updateCharacter(
+  projectId: string,
+  charId: string,
+  patch: { name?: string; color?: string },
+): Promise<Character> {
+  const { data } = await api.patch(`/projects/${projectId}/characters/${charId}`, patch);
   return data;
 }
 
@@ -39,7 +52,7 @@ export async function deleteCharacter(projectId: string, charId: string): Promis
 export async function addLine(
   projectId: string,
   text: string,
-  type: 'dialogue' | 'narrator',
+  type: LineType,
   characterId?: string | null,
 ): Promise<DialogueLine> {
   const { data } = await api.post(`/projects/${projectId}/lines`, {
@@ -50,8 +63,22 @@ export async function addLine(
   return data;
 }
 
+export async function updateLine(
+  projectId: string,
+  lineId: string,
+  text: string,
+): Promise<DialogueLine> {
+  const { data } = await api.patch(`/projects/${projectId}/lines/${lineId}`, { text });
+  return data;
+}
+
 export async function deleteLine(projectId: string, lineId: string): Promise<void> {
   await api.delete(`/projects/${projectId}/lines/${lineId}`);
+}
+
+export async function reorderLines(projectId: string, orderedIds: string[]): Promise<Project> {
+  const { data } = await api.patch(`/projects/${projectId}/lines/reorder`, { orderedIds });
+  return data;
 }
 
 export function getPdfUrl(projectId: string): string {
