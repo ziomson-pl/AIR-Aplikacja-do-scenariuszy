@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { editorReducer, initialState } from './reducer';
-import type { Character, DialogueLine, Project, EditorState } from './types';
+import type { Character, DialogueLine, Scene, Project, EditorState } from './types';
 
 const char = (id: string, name = id, color = '#111'): Character => ({
   id,
@@ -11,11 +11,28 @@ const char = (id: string, name = id, color = '#111'): Character => ({
 
 const line = (
   id: string,
+  sceneId = 's1',
   type: DialogueLine['type'] = 'dialogue',
   characterId: string | null = null,
   text = 'tekst',
   order = 0,
-): DialogueLine => ({ id, projectId: 'p1', characterId, text, order, type });
+): DialogueLine => ({
+  id,
+  sceneId,
+  characterId,
+  text,
+  parenthetical: null,
+  order,
+  type,
+});
+
+const scene = (id: string, lines: DialogueLine[] = [], order = 0): Scene => ({
+  id,
+  projectId: 'p1',
+  heading: 'INT. POKÓJ — DZIEŃ',
+  order,
+  lines,
+});
 
 const project = (over: Partial<Project> = {}): Project => ({
   id: 'p1',
@@ -23,7 +40,7 @@ const project = (over: Partial<Project> = {}): Project => ({
   createdAt: '2026-01-01',
   updatedAt: '2026-01-01',
   characters: [],
-  lines: [],
+  scenes: [],
   ...over,
 });
 
@@ -41,6 +58,12 @@ describe('editorReducer', () => {
       expect(next.activeSpeakerId).toBe('a');
       expect(next.composeMode).toBe('dialogue');
       expect(next.loading).toBe(false);
+    });
+
+    it('sets the first scene as active', () => {
+      const p = project({ scenes: [scene('s1'), scene('s2', [], 1)] });
+      const next = editorReducer(initialState, { type: 'LOAD_PROJECT', payload: p });
+      expect(next.activeSceneId).toBe('s1');
     });
 
     it('falls back to narrator mode when there are no characters', () => {
@@ -68,18 +91,19 @@ describe('editorReducer', () => {
   });
 
   describe('UPDATE_CHARACTER', () => {
-    it('updates the character and syncs denormalised lines', () => {
+    it('updates the character and syncs denormalized lines in scenes', () => {
+      const l = { ...line('l1', 's1', 'dialogue', 'a'), character: char('a', 'Anna') };
       const state = withProject(
         project({
           characters: [char('a', 'Anna')],
-          lines: [{ ...line('l1', 'dialogue', 'a'), character: char('a', 'Anna') }],
+          scenes: [scene('s1', [l])],
         }),
       );
       const updated = char('a', 'Ania', '#abc');
       const next = editorReducer(state, { type: 'UPDATE_CHARACTER', payload: updated });
       expect(next.project!.characters[0].name).toBe('Ania');
-      expect(next.project!.lines[0].character!.name).toBe('Ania');
-      expect(next.project!.lines[0].character!.color).toBe('#abc');
+      expect(next.project!.scenes[0].lines[0].character!.name).toBe('Ania');
+      expect(next.project!.scenes[0].lines[0].character!.color).toBe('#abc');
     });
   });
 
@@ -112,45 +136,88 @@ describe('editorReducer', () => {
 
     it('SET_COMPOSE_MODE switches the mode', () => {
       const state = withProject(project());
-      expect(editorReducer(state, { type: 'SET_COMPOSE_MODE', payload: 'scene' }).composeMode).toBe(
-        'scene',
-      );
+      expect(
+        editorReducer(state, { type: 'SET_COMPOSE_MODE', payload: 'narrator' }).composeMode,
+      ).toBe('narrator');
+    });
+  });
+
+  describe('scenes', () => {
+    it('ADD_SCENE appends', () => {
+      const state = withProject(project());
+      const s = scene('s1');
+      const next = editorReducer(state, { type: 'ADD_SCENE', payload: s });
+      expect(next.project!.scenes.map((s) => s.id)).toEqual(['s1']);
+    });
+
+    it('REMOVE_SCENE removes and updates activeSceneId', () => {
+      const state = withProject(project({ scenes: [scene('s1'), scene('s2', [], 1)] }), {
+        activeSceneId: 's1',
+      });
+      const next = editorReducer(state, { type: 'REMOVE_SCENE', payload: 's1' });
+      expect(next.project!.scenes.map((s) => s.id)).toEqual(['s2']);
+      expect(next.activeSceneId).toBe('s2');
+    });
+
+    it('TOGGLE_SCENE_COLLAPSE adds then removes', () => {
+      const state = withProject(project());
+      const after = editorReducer(state, { type: 'TOGGLE_SCENE_COLLAPSE', payload: 's1' });
+      expect(after.collapsedScenes.has('s1')).toBe(true);
+      const after2 = editorReducer(after, { type: 'TOGGLE_SCENE_COLLAPSE', payload: 's1' });
+      expect(after2.collapsedScenes.has('s1')).toBe(false);
     });
   });
 
   describe('lines', () => {
-    it('ADD_LINE appends', () => {
-      const state = withProject(project({ lines: [line('l1')] }));
-      const next = editorReducer(state, { type: 'ADD_LINE', payload: line('l2') });
-      expect(next.project!.lines.map((l) => l.id)).toEqual(['l1', 'l2']);
+    it('ADD_LINE appends to the correct scene', () => {
+      const state = withProject(project({ scenes: [scene('s1', [line('l1')])] }));
+      const newLine = line('l2', 's1');
+      const next = editorReducer(state, { type: 'ADD_LINE', payload: { sceneId: 's1', line: newLine } });
+      expect(next.project!.scenes[0].lines.map((l) => l.id)).toEqual(['l1', 'l2']);
     });
 
     it('UPDATE_LINE replaces the matching line', () => {
-      const state = withProject(project({ lines: [line('l1', 'dialogue', null, 'stary')] }));
+      const state = withProject(
+        project({ scenes: [scene('s1', [line('l1', 's1', 'dialogue', null, 'stary')])] }),
+      );
+      const updated = line('l1', 's1', 'dialogue', null, 'nowy');
       const next = editorReducer(state, {
         type: 'UPDATE_LINE',
-        payload: line('l1', 'dialogue', null, 'nowy'),
+        payload: { sceneId: 's1', line: updated },
       });
-      expect(next.project!.lines[0].text).toBe('nowy');
+      expect(next.project!.scenes[0].lines[0].text).toBe('nowy');
     });
 
-    it('REMOVE_LINE filters the line out', () => {
-      const state = withProject(project({ lines: [line('l1'), line('l2')] }));
-      const next = editorReducer(state, { type: 'REMOVE_LINE', payload: 'l1' });
-      expect(next.project!.lines.map((l) => l.id)).toEqual(['l2']);
+    it('REMOVE_LINE filters the line out of the correct scene', () => {
+      const state = withProject(
+        project({ scenes: [scene('s1', [line('l1'), line('l2')])] }),
+      );
+      const next = editorReducer(state, {
+        type: 'REMOVE_LINE',
+        payload: { sceneId: 's1', lineId: 'l1' },
+      });
+      expect(next.project!.scenes[0].lines.map((l) => l.id)).toEqual(['l2']);
     });
 
-    it('REORDER_LINES replaces the whole list', () => {
-      const state = withProject(project({ lines: [line('l1'), line('l2')] }));
+    it('REORDER_LINES replaces the scene lines', () => {
+      const state = withProject(
+        project({ scenes: [scene('s1', [line('l1'), line('l2')])] }),
+      );
       const reordered = [line('l2'), line('l1')];
-      const next = editorReducer(state, { type: 'REORDER_LINES', payload: reordered });
-      expect(next.project!.lines.map((l) => l.id)).toEqual(['l2', 'l1']);
+      const next = editorReducer(state, {
+        type: 'REORDER_LINES',
+        payload: { sceneId: 's1', lines: reordered },
+      });
+      expect(next.project!.scenes[0].lines.map((l) => l.id)).toEqual(['l2', 'l1']);
     });
   });
 
   describe('guards', () => {
     it('returns state unchanged for project-scoped actions when no project is loaded', () => {
-      const next = editorReducer(initialState, { type: 'ADD_LINE', payload: line('l1') });
+      const next = editorReducer(initialState, {
+        type: 'ADD_LINE',
+        payload: { sceneId: 's1', line: line('l1') },
+      });
       expect(next).toBe(initialState);
     });
 

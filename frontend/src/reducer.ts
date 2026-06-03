@@ -4,6 +4,8 @@ export const initialState: EditorState = {
   project: null,
   activeSpeakerId: null,
   composeMode: 'dialogue',
+  activeSceneId: null,
+  collapsedScenes: new Set<string>(),
   loading: false,
   error: null,
 };
@@ -12,11 +14,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
   switch (action.type) {
     case 'LOAD_PROJECT': {
       const firstSpeaker = action.payload.characters[0]?.id ?? null;
+      const firstScene = action.payload.scenes[0]?.id ?? null;
       return {
         ...state,
         project: action.payload,
         activeSpeakerId: firstSpeaker,
+        activeSceneId: firstScene,
         composeMode: firstSpeaker ? 'dialogue' : 'narrator',
+        collapsedScenes: new Set<string>(),
         loading: false,
         error: null,
       };
@@ -37,7 +42,6 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           ...state.project,
           characters: [...state.project.characters, action.payload],
         },
-        // First character ever added becomes the active speaker in dialogue mode.
         activeSpeakerId: isFirst ? action.payload.id : state.activeSpeakerId,
         composeMode: isFirst ? 'dialogue' : state.composeMode,
       };
@@ -52,10 +56,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           characters: state.project.characters.map((c) =>
             c.id === action.payload.id ? action.payload : c,
           ),
-          // Keep denormalised character on existing lines in sync.
-          lines: state.project.lines.map((l) =>
-            l.characterId === action.payload.id ? { ...l, character: action.payload } : l,
-          ),
+          scenes: state.project.scenes.map((scene) => ({
+            ...scene,
+            lines: scene.lines.map((l) =>
+              l.characterId === action.payload.id ? { ...l, character: action.payload } : l,
+            ),
+          })),
         },
       };
     }
@@ -77,11 +83,78 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'SET_COMPOSE_MODE':
       return { ...state, composeMode: action.payload };
 
+    case 'SET_ACTIVE_SCENE':
+      return { ...state, activeSceneId: action.payload };
+
+    case 'TOGGLE_SCENE_COLLAPSE': {
+      const next = new Set<string>(state.collapsedScenes);
+      if (next.has(action.payload)) {
+        next.delete(action.payload);
+      } else {
+        next.add(action.payload);
+      }
+      return { ...state, collapsedScenes: next };
+    }
+
+    case 'ADD_SCENE': {
+      if (!state.project) return state;
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          scenes: [...state.project.scenes, action.payload],
+        },
+        activeSceneId: state.activeSceneId ?? action.payload.id,
+      };
+    }
+
+    case 'UPDATE_SCENE': {
+      if (!state.project) return state;
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          scenes: state.project.scenes.map((s) =>
+            s.id === action.payload.id ? action.payload : s,
+          ),
+        },
+      };
+    }
+
+    case 'REMOVE_SCENE': {
+      if (!state.project) return state;
+      const remainingScenes = state.project.scenes.filter((s) => s.id !== action.payload);
+      const newActiveSceneId =
+        state.activeSceneId === action.payload
+          ? (remainingScenes[0]?.id ?? null)
+          : state.activeSceneId;
+      const newCollapsed = new Set<string>(state.collapsedScenes);
+      newCollapsed.delete(action.payload);
+      return {
+        ...state,
+        project: { ...state.project, scenes: remainingScenes },
+        activeSceneId: newActiveSceneId,
+        collapsedScenes: newCollapsed,
+      };
+    }
+
+    case 'REORDER_SCENES': {
+      if (!state.project) return state;
+      return { ...state, project: { ...state.project, scenes: action.payload } };
+    }
+
     case 'ADD_LINE': {
       if (!state.project) return state;
       return {
         ...state,
-        project: { ...state.project, lines: [...state.project.lines, action.payload] },
+        project: {
+          ...state.project,
+          scenes: state.project.scenes.map((scene) =>
+            scene.id === action.payload.sceneId
+              ? { ...scene, lines: [...scene.lines, action.payload.line] }
+              : scene,
+          ),
+        },
       };
     }
 
@@ -91,7 +164,16 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         project: {
           ...state.project,
-          lines: state.project.lines.map((l) => (l.id === action.payload.id ? action.payload : l)),
+          scenes: state.project.scenes.map((scene) =>
+            scene.id === action.payload.sceneId
+              ? {
+                  ...scene,
+                  lines: scene.lines.map((l) =>
+                    l.id === action.payload.line.id ? action.payload.line : l,
+                  ),
+                }
+              : scene,
+          ),
         },
       };
     }
@@ -102,14 +184,104 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         project: {
           ...state.project,
-          lines: state.project.lines.filter((l) => l.id !== action.payload),
+          scenes: state.project.scenes.map((scene) =>
+            scene.id === action.payload.sceneId
+              ? { ...scene, lines: scene.lines.filter((l) => l.id !== action.payload.lineId) }
+              : scene,
+          ),
         },
       };
     }
 
     case 'REORDER_LINES': {
       if (!state.project) return state;
-      return { ...state, project: { ...state.project, lines: action.payload } };
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          scenes: state.project.scenes.map((scene) =>
+            scene.id === action.payload.sceneId
+              ? { ...scene, lines: action.payload.lines }
+              : scene,
+          ),
+        },
+      };
+    }
+
+    case 'ADD_COMMENT': {
+      if (!state.project) return state;
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          scenes: state.project.scenes.map((scene) =>
+            scene.id === action.payload.sceneId
+              ? {
+                  ...scene,
+                  lines: scene.lines.map((l) =>
+                    l.id === action.payload.lineId
+                      ? { ...l, comments: [...(l.comments ?? []), action.payload.comment] }
+                      : l,
+                  ),
+                }
+              : scene,
+          ),
+        },
+      };
+    }
+
+    case 'RESOLVE_COMMENT': {
+      if (!state.project) return state;
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          scenes: state.project.scenes.map((scene) =>
+            scene.id === action.payload.sceneId
+              ? {
+                  ...scene,
+                  lines: scene.lines.map((l) =>
+                    l.id === action.payload.lineId
+                      ? {
+                          ...l,
+                          comments: (l.comments ?? []).map((c) =>
+                            c.id === action.payload.commentId ? { ...c, resolved: true } : c,
+                          ),
+                        }
+                      : l,
+                  ),
+                }
+              : scene,
+          ),
+        },
+      };
+    }
+
+    case 'REMOVE_COMMENT': {
+      if (!state.project) return state;
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          scenes: state.project.scenes.map((scene) =>
+            scene.id === action.payload.sceneId
+              ? {
+                  ...scene,
+                  lines: scene.lines.map((l) =>
+                    l.id === action.payload.lineId
+                      ? {
+                          ...l,
+                          comments: (l.comments ?? []).filter(
+                            (c) => c.id !== action.payload.commentId,
+                          ),
+                        }
+                      : l,
+                  ),
+                }
+              : scene,
+          ),
+        },
+      };
     }
 
     case 'UPDATE_PROJECT_TITLE': {

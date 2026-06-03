@@ -1,7 +1,5 @@
-export type LineType = 'dialogue' | 'narrator' | 'scene';
-
-/** What the composer is currently set to produce. */
-export type ComposeMode = LineType;
+export type LineType = 'dialogue' | 'narrator';
+export type ExportFormat = 'pdf' | 'fountain' | 'docx';
 
 export interface Character {
   id: string;
@@ -10,14 +8,40 @@ export interface Character {
   projectId: string;
 }
 
+export interface Comment {
+  id: string;
+  lineId: string;
+  text: string;
+  resolved: boolean;
+  createdAt: string;
+}
+
+export interface LineVersion {
+  id: string;
+  lineId: string;
+  text: string;
+  parenthetical: string | null;
+  createdAt: string;
+}
+
 export interface DialogueLine {
   id: string;
-  projectId: string;
+  sceneId: string;
   characterId: string | null;
   text: string;
+  parenthetical: string | null;
   order: number;
   type: LineType;
   character?: Character | null;
+  comments?: Comment[];
+}
+
+export interface Scene {
+  id: string;
+  projectId: string;
+  heading: string;
+  order: number;
+  lines: DialogueLine[];
 }
 
 export interface Project {
@@ -26,7 +50,7 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   characters: Character[];
-  lines: DialogueLine[];
+  scenes: Scene[];
 }
 
 export interface ProjectSummary {
@@ -35,15 +59,17 @@ export interface ProjectSummary {
   createdAt: string;
   updatedAt: string;
   characters: Character[];
-  _count: { lines: number };
+  _count: { scenes: number };
 }
 
-// ---- Reducer state & actions ----
+export type ComposeMode = LineType;
 
 export interface EditorState {
   project: Project | null;
   activeSpeakerId: string | null;
   composeMode: ComposeMode;
+  activeSceneId: string | null;
+  collapsedScenes: Set<string>;
   loading: boolean;
   error: string | null;
 }
@@ -57,8 +83,17 @@ export type EditorAction =
   | { type: 'REMOVE_CHARACTER'; payload: string }
   | { type: 'SET_ACTIVE_SPEAKER'; payload: string }
   | { type: 'SET_COMPOSE_MODE'; payload: ComposeMode }
-  | { type: 'ADD_LINE'; payload: DialogueLine }
-  | { type: 'UPDATE_LINE'; payload: DialogueLine }
-  | { type: 'REMOVE_LINE'; payload: string }
-  | { type: 'REORDER_LINES'; payload: DialogueLine[] }
+  | { type: 'SET_ACTIVE_SCENE'; payload: string }
+  | { type: 'TOGGLE_SCENE_COLLAPSE'; payload: string }
+  | { type: 'ADD_SCENE'; payload: Scene }
+  | { type: 'UPDATE_SCENE'; payload: Scene }
+  | { type: 'REMOVE_SCENE'; payload: string }
+  | { type: 'REORDER_SCENES'; payload: Scene[] }
+  | { type: 'ADD_LINE'; payload: { sceneId: string; line: DialogueLine } }
+  | { type: 'UPDATE_LINE'; payload: { sceneId: string; line: DialogueLine } }
+  | { type: 'REMOVE_LINE'; payload: { sceneId: string; lineId: string } }
+  | { type: 'REORDER_LINES'; payload: { sceneId: string; lines: DialogueLine[] } }
+  | { type: 'ADD_COMMENT'; payload: { lineId: string; sceneId: string; comment: Comment } }
+  | { type: 'RESOLVE_COMMENT'; payload: { lineId: string; sceneId: string; commentId: string } }
+  | { type: 'REMOVE_COMMENT'; payload: { lineId: string; sceneId: string; commentId: string } }
   | { type: 'UPDATE_PROJECT_TITLE'; payload: string };
