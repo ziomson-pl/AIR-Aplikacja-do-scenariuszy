@@ -4,7 +4,6 @@ import { ProjectsService } from './projects.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CHARACTER_PALETTE } from './screenplay.constants';
 
-/** Build a fully mocked PrismaService with jest.fn() for every method used. */
 function createPrismaMock() {
   return {
     project: {
@@ -21,10 +20,27 @@ function createPrismaMock() {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    scene: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
     dialogueLine: {
       create: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    lineVersion: {
+      create: jest.fn(),
+    },
+    comment: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
     },
@@ -120,7 +136,7 @@ describe('ProjectsService', () => {
 
   describe('addLine', () => {
     beforeEach(() => {
-      prisma.project.findUnique.mockResolvedValue({ id: 'p1' });
+      prisma.scene.findFirst.mockResolvedValue({ id: 's1', projectId: 'p1' });
       prisma.project.update.mockResolvedValue({ id: 'p1' });
     });
 
@@ -129,7 +145,7 @@ describe('ProjectsService', () => {
       prisma.dialogueLine.findFirst.mockResolvedValue({ order: 4 });
       prisma.dialogueLine.create.mockResolvedValue({ id: 'l1' });
 
-      await service.addLine('p1', { text: '  Cześć  ', type: 'dialogue', characterId: 'c1' });
+      await service.addLine('p1', 's1', { text: '  Cześć  ', type: 'dialogue', characterId: 'c1' });
 
       expect(prisma.dialogueLine.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -142,7 +158,7 @@ describe('ProjectsService', () => {
       prisma.dialogueLine.findFirst.mockResolvedValue(null);
       prisma.dialogueLine.create.mockResolvedValue({ id: 'l1' });
 
-      await service.addLine('p1', { text: 'WNĘTRZE – DZIEŃ', type: 'scene' });
+      await service.addLine('p1', 's1', { text: 'Pada deszcz', type: 'narrator' });
 
       expect(prisma.dialogueLine.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ order: 0, characterId: null }) }),
@@ -150,16 +166,16 @@ describe('ProjectsService', () => {
     });
 
     it('rejects a dialogue line without a character', async () => {
-      await expect(service.addLine('p1', { text: 'Hej', type: 'dialogue' })).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+      await expect(
+        service.addLine('p1', 's1', { text: 'Hej', type: 'dialogue' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('stores narrator lines with a null character', async () => {
       prisma.dialogueLine.findFirst.mockResolvedValue(null);
       prisma.dialogueLine.create.mockResolvedValue({ id: 'l1' });
 
-      await service.addLine('p1', { text: 'Pada deszcz', type: 'narrator' });
+      await service.addLine('p1', 's1', { text: 'Pada deszcz', type: 'narrator' });
 
       expect(prisma.dialogueLine.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ characterId: null }) }),
@@ -168,24 +184,23 @@ describe('ProjectsService', () => {
   });
 
   describe('reorderLines', () => {
-    it('rejects an id set that does not match the project', async () => {
-      prisma.project.findUnique.mockResolvedValue({ id: 'p1' });
+    it('rejects an id set that does not match the scene', async () => {
+      prisma.scene.findFirst.mockResolvedValue({ id: 's1', projectId: 'p1' });
       prisma.dialogueLine.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
 
       await expect(
-        service.reorderLines('p1', { orderedIds: ['a', 'x'] }),
+        service.reorderLines('p1', 's1', { orderedIds: ['a', 'x'] }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('writes new order indexes inside a transaction', async () => {
-      prisma.project.findUnique
-        .mockResolvedValueOnce({ id: 'p1' }) // assertProjectExists
-        .mockResolvedValueOnce({ id: 'p1', lines: [] }); // getProject at the end
+      prisma.scene.findFirst.mockResolvedValue({ id: 's1', projectId: 'p1' });
+      prisma.scene.findUnique.mockResolvedValue({ id: 's1', lines: [] });
       prisma.dialogueLine.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
       prisma.project.update.mockResolvedValue({ id: 'p1' });
       prisma.dialogueLine.update.mockImplementation((args: unknown) => args);
 
-      await service.reorderLines('p1', { orderedIds: ['b', 'a'] });
+      await service.reorderLines('p1', 's1', { orderedIds: ['b', 'a'] });
 
       expect(prisma.dialogueLine.update).toHaveBeenNthCalledWith(1, {
         where: { id: 'b' },
@@ -202,7 +217,24 @@ describe('ProjectsService', () => {
   describe('deleteLine', () => {
     it('throws NotFound when the line is absent', async () => {
       prisma.dialogueLine.findFirst.mockResolvedValue(null);
-      await expect(service.deleteLine('p1', 'missing')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.deleteLine('p1', 's1', 'missing')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('addScene', () => {
+    it('computes order as last scene order + 1', async () => {
+      prisma.project.findUnique.mockResolvedValue({ id: 'p1' });
+      prisma.scene.findFirst.mockResolvedValue({ order: 2 });
+      prisma.scene.create.mockResolvedValue({ id: 's3', heading: 'EXT. PARK — NACHT', order: 3, lines: [] });
+      prisma.project.update.mockResolvedValue({ id: 'p1' });
+
+      await service.addScene('p1', { heading: 'EXT. PARK — NACHT' });
+
+      expect(prisma.scene.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ order: 3 }) }),
+      );
     });
   });
 });

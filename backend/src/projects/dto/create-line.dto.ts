@@ -10,6 +10,10 @@ export class CreateLineDto {
   @IsNotEmpty()
   text: string;
 
+  @IsOptional()
+  @IsString()
+  parenthetical?: string | null;
+
   @IsIn(LINE_TYPES)
   type: LineTypeValue;
 }

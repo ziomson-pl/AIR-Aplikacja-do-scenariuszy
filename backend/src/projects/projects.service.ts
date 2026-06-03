@@ -7,11 +7,28 @@ import { UpdateCharacterDto } from './dto/update-character.dto';
 import { CreateLineDto } from './dto/create-line.dto';
 import { UpdateLineDto } from './dto/update-line.dto';
 import { ReorderLinesDto } from './dto/reorder-lines.dto';
+import { CreateSceneDto } from './dto/create-scene.dto';
+import { UpdateSceneDto } from './dto/update-scene.dto';
+import { ReorderScenesDto } from './dto/reorder-scenes.dto';
+import { CreateCommentDto } from './dto/create-comment.dto';
+import { ImportTextDto } from './dto/import-text.dto';
 import { colorForIndex } from './screenplay.constants';
+import { parseImportText } from './text-import';
 
 const fullProjectInclude = {
-  characters: { orderBy: { name: 'asc' } },
-  lines: { orderBy: { order: 'asc' }, include: { character: true } },
+  characters: { orderBy: { name: 'asc' as const } },
+  scenes: {
+    orderBy: { order: 'asc' as const },
+    include: {
+      lines: {
+        orderBy: { order: 'asc' as const },
+        include: {
+          character: true,
+          comments: { orderBy: { createdAt: 'asc' as const } },
+        },
+      },
+    },
+  },
 } as const;
 
 @Injectable()
@@ -30,7 +47,7 @@ export class ProjectsService {
       orderBy: { updatedAt: 'desc' },
       include: {
         characters: { orderBy: { name: 'asc' } },
-        _count: { select: { lines: true } },
+        _count: { select: { scenes: true } },
       },
     });
   }
@@ -57,6 +74,8 @@ export class ProjectsService {
     await this.assertProjectExists(id);
     return this.prisma.project.delete({ where: { id } });
   }
+
+  // ----- Characters -----
 
   async addCharacter(projectId: string, dto: CreateCharacterDto) {
     await this.assertProjectExists(projectId);
@@ -89,8 +108,78 @@ export class ProjectsService {
     return this.prisma.character.delete({ where: { id: charId } });
   }
 
-  async addLine(projectId: string, dto: CreateLineDto) {
+  // ----- Scenes -----
+
+  async addScene(projectId: string, dto: CreateSceneDto) {
     await this.assertProjectExists(projectId);
+    const lastScene = await this.prisma.scene.findFirst({
+      where: { projectId },
+      orderBy: { order: 'desc' },
+      select: { order: true },
+    });
+    const order = (lastScene?.order ?? -1) + 1;
+    const scene = await this.prisma.scene.create({
+      data: { projectId, heading: dto.heading.trim(), order },
+      include: {
+        lines: {
+          orderBy: { order: 'asc' },
+          include: { character: true, comments: { orderBy: { createdAt: 'asc' } } },
+        },
+      },
+    });
+    await this.touchProject(projectId);
+    return scene;
+  }
+
+  async updateScene(projectId: string, sceneId: string, dto: UpdateSceneDto) {
+    await this.assertSceneExists(projectId, sceneId);
+    const scene = await this.prisma.scene.update({
+      where: { id: sceneId },
+      data: { heading: dto.heading.trim() },
+      include: {
+        lines: {
+          orderBy: { order: 'asc' },
+          include: { character: true, comments: { orderBy: { createdAt: 'asc' } } },
+        },
+      },
+    });
+    await this.touchProject(projectId);
+    return scene;
+  }
+
+  async deleteScene(projectId: string, sceneId: string) {
+    await this.assertSceneExists(projectId, sceneId);
+    const deleted = await this.prisma.scene.delete({ where: { id: sceneId } });
+    await this.touchProject(projectId);
+    return deleted;
+  }
+
+  async reorderScenes(projectId: string, dto: ReorderScenesDto) {
+    await this.assertProjectExists(projectId);
+    const existing = await this.prisma.scene.findMany({
+      where: { projectId },
+      select: { id: true },
+    });
+    const existingIds = new Set(existing.map((s) => s.id));
+    const incoming = new Set(dto.orderedIds);
+
+    if (existingIds.size !== incoming.size || ![...existingIds].every((id) => incoming.has(id))) {
+      throw new BadRequestException('orderedIds must match the project scenes exactly');
+    }
+
+    await this.prisma.$transaction(
+      dto.orderedIds.map((id, index) =>
+        this.prisma.scene.update({ where: { id }, data: { order: index } }),
+      ),
+    );
+    await this.touchProject(projectId);
+    return this.getProject(projectId);
+  }
+
+  // ----- Lines -----
+
+  async addLine(projectId: string, sceneId: string, dto: CreateLineDto) {
+    await this.assertSceneExists(projectId, sceneId);
 
     if (dto.type === 'dialogue') {
       if (!dto.characterId) {
@@ -100,55 +189,82 @@ export class ProjectsService {
     }
 
     const lastLine = await this.prisma.dialogueLine.findFirst({
-      where: { projectId },
+      where: { sceneId },
       orderBy: { order: 'desc' },
+      select: { order: true },
     });
     const order = (lastLine?.order ?? -1) + 1;
 
     const line = await this.prisma.dialogueLine.create({
       data: {
-        projectId,
-        characterId: dto.type === 'dialogue' ? dto.characterId : null,
+        sceneId,
+        characterId: dto.type === 'dialogue' ? (dto.characterId ?? null) : null,
         text: dto.text.trim(),
+        parenthetical: dto.parenthetical ?? null,
         order,
         type: dto.type,
       },
-      include: { character: true },
+      include: {
+        character: true,
+        comments: { orderBy: { createdAt: 'asc' } },
+      },
     });
     await this.touchProject(projectId);
     return line;
   }
 
-  async updateLine(projectId: string, lineId: string, dto: UpdateLineDto) {
-    await this.assertLineExists(projectId, lineId);
+  async updateLine(projectId: string, sceneId: string, lineId: string, dto: UpdateLineDto) {
+    await this.assertLineExists(projectId, sceneId, lineId);
+
+    // Save current version before updating
+    const current = await this.prisma.dialogueLine.findUnique({
+      where: { id: lineId },
+      select: { text: true, parenthetical: true },
+    });
+    if (current) {
+      await this.prisma.lineVersion.create({
+        data: {
+          lineId,
+          text: current.text,
+          parenthetical: current.parenthetical ?? null,
+        },
+      });
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (dto.text !== undefined) updateData.text = dto.text.trim();
+    if (dto.parenthetical !== undefined) updateData.parenthetical = dto.parenthetical;
+
     const line = await this.prisma.dialogueLine.update({
       where: { id: lineId },
-      data: { text: dto.text.trim() },
-      include: { character: true },
+      data: updateData,
+      include: {
+        character: true,
+        comments: { orderBy: { createdAt: 'asc' } },
+      },
     });
     await this.touchProject(projectId);
     return line;
   }
 
-  async deleteLine(projectId: string, lineId: string) {
-    await this.assertLineExists(projectId, lineId);
+  async deleteLine(projectId: string, sceneId: string, lineId: string) {
+    await this.assertLineExists(projectId, sceneId, lineId);
     const deleted = await this.prisma.dialogueLine.delete({ where: { id: lineId } });
     await this.touchProject(projectId);
     return deleted;
   }
 
-  /** Persist a new ordering. `orderedIds` must contain exactly the project's line ids. */
-  async reorderLines(projectId: string, dto: ReorderLinesDto) {
-    await this.assertProjectExists(projectId);
+  async reorderLines(projectId: string, sceneId: string, dto: ReorderLinesDto) {
+    await this.assertSceneExists(projectId, sceneId);
     const existing = await this.prisma.dialogueLine.findMany({
-      where: { projectId },
+      where: { sceneId },
       select: { id: true },
     });
     const existingIds = new Set(existing.map((l) => l.id));
     const incoming = new Set(dto.orderedIds);
 
     if (existingIds.size !== incoming.size || ![...existingIds].every((id) => incoming.has(id))) {
-      throw new BadRequestException('orderedIds must match the project lines exactly');
+      throw new BadRequestException('orderedIds must match the scene lines exactly');
     }
 
     await this.prisma.$transaction(
@@ -157,14 +273,155 @@ export class ProjectsService {
       ),
     );
     await this.touchProject(projectId);
+
+    const scene = await this.prisma.scene.findUnique({
+      where: { id: sceneId },
+      include: {
+        lines: {
+          orderBy: { order: 'asc' },
+          include: { character: true, comments: { orderBy: { createdAt: 'asc' } } },
+        },
+      },
+    });
+    return scene;
+  }
+
+  // ----- History -----
+
+  async getLineHistory(projectId: string, lineId: string) {
+    const line = await this.prisma.dialogueLine.findFirst({
+      where: {
+        id: lineId,
+        scene: { projectId },
+      },
+      select: { id: true },
+    });
+    if (!line) throw new NotFoundException(`Line ${lineId} not found`);
+
+    return this.prisma.lineVersion.findMany({
+      where: { lineId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // ----- Comments -----
+
+  async addComment(projectId: string, lineId: string, dto: CreateCommentDto) {
+    const line = await this.prisma.dialogueLine.findFirst({
+      where: { id: lineId, scene: { projectId } },
+      select: { id: true },
+    });
+    if (!line) throw new NotFoundException(`Line ${lineId} not found`);
+
+    return this.prisma.comment.create({
+      data: { lineId, text: dto.text.trim() },
+    });
+  }
+
+  async resolveComment(projectId: string, commentId: string) {
+    const comment = await this.prisma.comment.findFirst({
+      where: { id: commentId, line: { scene: { projectId } } },
+      select: { id: true },
+    });
+    if (!comment) throw new NotFoundException(`Comment ${commentId} not found`);
+
+    return this.prisma.comment.update({
+      where: { id: commentId },
+      data: { resolved: true },
+    });
+  }
+
+  async deleteComment(projectId: string, commentId: string) {
+    const comment = await this.prisma.comment.findFirst({
+      where: { id: commentId, line: { scene: { projectId } } },
+      select: { id: true },
+    });
+    if (!comment) throw new NotFoundException(`Comment ${commentId} not found`);
+
+    return this.prisma.comment.delete({ where: { id: commentId } });
+  }
+
+  // ----- Import -----
+
+  async importText(projectId: string, dto: ImportTextDto) {
+    await this.assertProjectExists(projectId);
+    const parsed = parseImportText(dto.text);
+
+    await this.prisma.$transaction(async (tx) => {
+      const existingCount = await tx.character.count({ where: { projectId } });
+      const existingChars = await tx.character.findMany({
+        where: { projectId },
+        select: { id: true, name: true },
+      });
+
+      const charMap = new Map<string, string>();
+      for (const c of existingChars) {
+        charMap.set(c.name.toLowerCase(), c.id);
+      }
+
+      let colorIdx = existingCount;
+      for (const name of parsed.characterNames) {
+        if (!charMap.has(name.toLowerCase())) {
+          const created = await tx.character.create({
+            data: {
+              name,
+              color: colorForIndex(colorIdx),
+              projectId,
+            },
+          });
+          charMap.set(name.toLowerCase(), created.id);
+          colorIdx++;
+        }
+      }
+
+      const lastScene = await tx.scene.findFirst({
+        where: { projectId },
+        orderBy: { order: 'desc' },
+        select: { order: true },
+      });
+      let sceneOrder = (lastScene?.order ?? -1) + 1;
+
+      for (const parsedScene of parsed.scenes) {
+        const scene = await tx.scene.create({
+          data: { projectId, heading: parsedScene.heading, order: sceneOrder++ },
+        });
+
+        let lineOrder = 0;
+        for (const parsedLine of parsedScene.lines) {
+          const characterId =
+            parsedLine.type === 'dialogue' && parsedLine.characterName
+              ? (charMap.get(parsedLine.characterName.toLowerCase()) ?? null)
+              : null;
+
+          await tx.dialogueLine.create({
+            data: {
+              sceneId: scene.id,
+              characterId,
+              text: parsedLine.text,
+              parenthetical: parsedLine.parenthetical ?? null,
+              order: lineOrder++,
+              type: parsedLine.type,
+            },
+          });
+        }
+      }
+
+      await tx.project.update({
+        where: { id: projectId },
+        data: { updatedAt: new Date() },
+      });
+    });
+
     return this.getProject(projectId);
   }
 
-  async getProjectForPdf(id: string) {
+  // ----- Export helpers -----
+
+  async getProjectForExport(id: string) {
     return this.getProject(id);
   }
 
-  // ----- guards -----
+  // ----- Private guards -----
 
   private async assertProjectExists(id: string) {
     const exists = await this.prisma.project.findUnique({ where: { id }, select: { id: true } });
@@ -179,9 +436,17 @@ export class ProjectsService {
     if (!character) throw new NotFoundException(`Character ${charId} not found`);
   }
 
-  private async assertLineExists(projectId: string, lineId: string) {
+  private async assertSceneExists(projectId: string, sceneId: string) {
+    const scene = await this.prisma.scene.findFirst({
+      where: { id: sceneId, projectId },
+      select: { id: true },
+    });
+    if (!scene) throw new NotFoundException(`Scene ${sceneId} not found`);
+  }
+
+  private async assertLineExists(projectId: string, sceneId: string, lineId: string) {
     const line = await this.prisma.dialogueLine.findFirst({
-      where: { id: lineId, projectId },
+      where: { id: lineId, sceneId, scene: { projectId } },
       select: { id: true },
     });
     if (!line) throw new NotFoundException(`Line ${lineId} not found`);
