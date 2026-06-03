@@ -1,26 +1,11 @@
-/** Line kinds supported by the screenplay editor. */
-export const LINE_TYPES = ['dialogue', 'narrator', 'scene'] as const;
+export const LINE_TYPES = ['dialogue', 'narrator'] as const;
 export type LineTypeValue = (typeof LINE_TYPES)[number];
 
-/**
- * Distinct, reasonably accessible accent colours assigned to characters as
- * they are created. Cycled by index so a project's first ten characters all
- * get a unique colour.
- */
 export const CHARACTER_PALETTE = [
-  '#6366f1', // indigo
-  '#ec4899', // pink
-  '#14b8a6', // teal
-  '#f59e0b', // amber
-  '#8b5cf6', // violet
-  '#ef4444', // red
-  '#10b981', // emerald
-  '#3b82f6', // blue
-  '#f97316', // orange
-  '#06b6d4', // cyan
+  '#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6',
+  '#ef4444', '#10b981', '#3b82f6', '#f97316', '#06b6d4',
 ] as const;
 
-/** Pick the next palette colour for a character at the given index. */
 export function colorForIndex(index: number): string {
   return CHARACTER_PALETTE[index % CHARACTER_PALETTE.length];
 }

@@ -1,14 +1,18 @@
-import { LineTypeValue } from './screenplay.constants';
-
 export interface PdfLine {
-  type: LineTypeValue;
+  type: 'dialogue' | 'narrator';
   characterName?: string | null;
   text: string;
+  parenthetical?: string | null;
+}
+
+export interface PdfScene {
+  heading: string;
+  lines: PdfLine[];
 }
 
 export interface PdfProject {
   title: string;
-  lines: PdfLine[];
+  scenes: PdfScene[];
 }
 
 /** Escape a raw string so it is safe to interpolate into HTML. */
@@ -24,10 +28,6 @@ export function escapeHtml(str: string): string {
 function renderLine(line: PdfLine): string {
   const text = escapeHtml(line.text);
 
-  if (line.type === 'scene') {
-    return `<div class="scene-block"><p class="scene-heading">${text.toUpperCase()}</p></div>`;
-  }
-
   if (line.type === 'narrator') {
     return `<div class="narrator-block"><p class="narrator-text">(${text})</p></div>`;
   }
@@ -35,7 +35,11 @@ function renderLine(line: PdfLine): string {
   const charName = line.characterName
     ? escapeHtml(line.characterName.toUpperCase())
     : 'NIEZNANA POSTAĆ';
-  return `<div class="dialogue-block"><p class="character-name">${charName}</p><p class="dialogue-text">${text}</p></div>`;
+  const parentheticalHtml =
+    line.parenthetical
+      ? `<p class="parenthetical">(${escapeHtml(line.parenthetical)})</p>`
+      : '';
+  return `<div class="dialogue-block"><p class="character-name">${charName}</p>${parentheticalHtml}<p class="dialogue-text">${text}</p></div>`;
 }
 
 /**
@@ -44,17 +48,24 @@ function renderLine(line: PdfLine): string {
  */
 export function buildScreenplayHtml(project: PdfProject): string {
   const title = escapeHtml(project.title);
-  const linesHtml = project.lines.map(renderLine).join('\n');
   const today = new Date().toLocaleDateString('pl-PL', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
 
+  const scenesHtml = project.scenes
+    .map((scene) => {
+      const headingHtml = `<div class="scene-block"><p class="scene-heading">${escapeHtml(scene.heading.toUpperCase())}</p></div>`;
+      const linesHtml = scene.lines.map(renderLine).join('\n');
+      return headingHtml + '\n' + linesHtml;
+    })
+    .join('\n');
+
   const body =
-    project.lines.length === 0
+    project.scenes.length === 0
       ? '<p class="empty-note">Scenariusz nie zawiera jeszcze żadnych kwestii.</p>'
-      : linesHtml;
+      : scenesHtml;
 
   return `<!DOCTYPE html>
 <html lang="pl">
@@ -104,6 +115,11 @@ export function buildScreenplayHtml(project: PdfProject): string {
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      margin-bottom: 0.15em;
+    }
+    .parenthetical {
+      text-align: center;
+      font-style: italic;
       margin-bottom: 0.15em;
     }
     .dialogue-text {
