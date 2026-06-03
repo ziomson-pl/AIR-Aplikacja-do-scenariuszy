@@ -1,14 +1,28 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Composer } from './Composer';
-import type { Character } from '../types';
+import type { Character, Scene } from '../types';
 
 const speaker: Character = { id: 'a', name: 'Anna', color: '#6366f1', projectId: 'p1' };
+const activeScene: Scene = {
+  id: 's1',
+  projectId: 'p1',
+  heading: 'INT. POKÓJ — DZIEŃ',
+  order: 0,
+  lines: [],
+};
+
+const defaultProps = {
+  activeScene,
+  parenthetical: '',
+  onParentheticalChange: () => {},
+};
 
 describe('Composer', () => {
   it('shows the speaker name (uppercased) in dialogue mode', () => {
     render(
       <Composer
+        {...defaultProps}
         composeMode="dialogue"
         speaker={speaker}
         hasCharacters
@@ -23,6 +37,7 @@ describe('Composer', () => {
   it('blocks dialogue input when there are no characters', () => {
     render(
       <Composer
+        {...defaultProps}
         composeMode="dialogue"
         speaker={null}
         hasCharacters={false}
@@ -38,6 +53,7 @@ describe('Composer', () => {
   it('labels the badge NARRATOR in narrator mode', () => {
     render(
       <Composer
+        {...defaultProps}
         composeMode="narrator"
         speaker={null}
         hasCharacters
@@ -53,6 +69,7 @@ describe('Composer', () => {
     const onSubmit = vi.fn();
     render(
       <Composer
+        {...defaultProps}
         composeMode="narrator"
         speaker={null}
         hasCharacters
@@ -69,6 +86,7 @@ describe('Composer', () => {
     const onSubmit = vi.fn();
     render(
       <Composer
+        {...defaultProps}
         composeMode="narrator"
         speaker={null}
         hasCharacters

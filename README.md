@@ -2,8 +2,8 @@
 
 Aplikacja webowa do pisania dialogów filmowych i scenariuszy. Wybierasz postać z
 panelu bocznego, wpisujesz kwestię w polu na dole ekranu — aplikacja sama dba
-o atrybucję (imię nad kwestią) i układ w stylu profesjonalnego scenariusza.
-Projekty zapisują się automatycznie w bazie danych i można je wyeksportować do
+o atrybuację (imię nad kwestią) i układ w stylu profesjonalnego scenariusza.
+Projekty zapisują się automatycznie w bazie danych i można je eksportować do
 PDF-a z pełnym formatowaniem.
 
 ---
@@ -36,7 +36,7 @@ PDF-a z pełnym formatowaniem.
 > **Windows:** zalecane użycie WSL2 (Ubuntu). Docker Desktop na Windows z
 > domyślnymi ustawieniami działa poprawnie.
 >
-> **macOS:** Docker Desktop lub OrbStack. Node.js najłatwiej zainstalować
+> **macOS:** Docker Desktop lub OrbStack. Node.js najlatwiej zainstalować
 > przez [nvm](https://github.com/nvm-sh/nvm) lub
 > [Homebrew](https://brew.sh): `brew install node`.
 
@@ -184,45 +184,50 @@ Otwórz przeglądarkę i wejdź na `http://localhost:5173`.
 ### Tworzenie pierwszego scenariusza
 
 1. Na ekranie startowym wpisz tytuł scenariusza i kliknij **+ Nowy scenariusz**.
-2. W edytorze kliknij pole **„Nowa postać…"** w lewym panelu, wpisz imię i naciśnij `+`.
-3. Kliknij imię postaci na liście — zostanie podświetlona jako aktywna.
-4. Wpisz kwestię w polu na dole ekranu i naciśnij `Enter`.
-5. Kwestia pojawi się w scenariuszu z imieniem postaci nad nią.
+2. Kliknij **+ Dodaj scenę** w lewym panelu i wpisz nagłówek (np. `INT. KUCHNIA — DZIEŃ`).
+3. Dodaj pierwszą postać w polu **„Nowa postać…"**.
+4. Kliknij imię postaci — zostanie podkreślona jako aktywna.
+5. Wpisz kwestię w polu na dole i naciśnij `Enter`.
 
-### Zmiana mówcy
+### Sceny
 
-Kliknij dowolną postać w lewym panelu — następna wpisana kwestia będzie jej.
-Aktywny mówca jest podświetlony kolorem.
+- Kliknij nagłówek sceny, aby ustawić ją jako aktywną (kwestie są dodawane do aktywnej sceny).
+- Podwójne kliknięcie nagłówka otwiera edycję.
+- Przycisk **▼/▶** zwija/rozwija scenę.
+- Chwyć ikonę **⢿** i przeciągnij, aby zmienić kolejność scen.
 
-### Didaskalia (Narrator)
+### Didaskalia (parenthetical)
 
-Kliknij przycisk **✎ Narrator** lub naciśnij `Alt+0`. Wpisana kwestia pojawi
-się jako tekst kursywą wyśrodkowany na stronie, w nawiasach.
+W trybie dialogu kliknij przycisk **( )** obok pola kompozytora, aby dodać
+didaskalia do kwestii (np. *ironicznie*, *szeptem*).
 
-### Nagłówki scen
+### Historia zmian
 
-Kliknij przycisk **⌖ Scena** lub naciśnij `Alt+S`. Wpisany tekst (np.
-`WNĘTRZE — KUCHNIA — DZIEŃ`) pojawi się jako pogrubiony nagłówek.
+Kliknij ikonę **🕐** przy kwestii, aby zobaczyć poprzednie wersje i przywrócić wybraną.
 
-### Edycja kwestii
+### Komentarze
 
-Kliknij dwukrotnie dowolną kwestię w scenariuszu — pole zamieni się w edytor.
-Zatwierdź przez `Enter`, anuluj przez `Esc`.
+Kliknij ikonę **💬** przy kwestii, aby otworzyć panel komentarzy. Można dodawać
+komentarze, oznaczać jako rozwiązane i usuwać.
 
-### Zmiana kolejności
+### Import tekstu
 
-Najedź myszą na kwestię — pojawią się strzałki ↑ ↓ z lewej strony.
+Kliknij **↑ Importuj tekst** w panelu bocznym. Wklej scenariusz w formacie:
+```
+INT. KUCHNIA — DZIEŃ
 
-### Zmiana nazwy i koloru postaci
+ANNA: Czy chcesz herbaty?
+KAROL: Chętnie, dziękuję.
 
-- **Zmień kolor:** kliknij kolorową kropkę przy imieniu postaci.
-- **Zmień nazwę:** kliknij dwukrotnie imię postaci.
+NARRATOR: Karol siada przy stole.
+```
 
-### Eksport do PDF
+### Eksport
 
-Kliknij **⬇ Eksportuj PDF** w lewym panelu. Plik pobierze się automatycznie
-z pełnym formatowaniem scenariuszowym (strona tytułowa, numeracja stron,
-poprawne polskie znaki diakrytyczne).
+W lewym panelu kliknij:
+- **PDF** — pełne formatowanie scenariuszowe z polskimi znakami
+- **Fountain** — format `.fountain` kompatybilny z Final Draft / Highland
+- **DOCX** — edytowalny dokument Word
 
 ---
 
@@ -230,15 +235,20 @@ poprawne polskie znaki diakrytyczne).
 
 | Funkcja | Opis |
 |---------|------|
+| Sceny jako kontenery | Dialogów są grupowane w scenach (INT./EXT.) |
 | Zarządzanie projektami | Tworzenie, zmiana tytułu, usuwanie |
-| Postacie | Dowolna liczba, własny kolor (z 10-kolorowej palety), edycja nazwy i koloru |
-| Trzy typy kwestii | Dialog (z atrybutowanym imieniem), Narrator (kursywa), Scena (nagłówek) |
+| Postacie | Dowolna liczba, własny kolor, edycja nazwy |
+| Didaskalia | Parenthetical przy każdej kwestii dialogowej |
+| Historia zmian | Każda edycja kwestii zapisuje poprzednią wersję |
+| Komentarze | Panel komentarzy przy każdej kwestii |
+| Drag & drop | Zmiana kolejności scen i kwestii przez przeciąganie |
 | Edycja inline | Podwójne kliknięcie otwiera edycję w miejscu |
-| Zmiana kolejności | Przyciski ↑ ↓ przy każdej kwestii, persystowane w bazie |
-| Autozapis | Każda zmiana zapisywana automatycznie ze wskaźnikiem stanu |
-| Statystyki | Liczba wierszy, słów, scen, udział każdej postaci (pasek) |
-| Eksport PDF | Server-side przez Puppeteer; polskie znaki, strona tytułowa, numeracja |
-| Powiadomienia | System toastów zamiast blokujących alertów |
+| Autozapis | Każda zmiana zapisywana automatycznie |
+| Statystyki | Liczba wierszy, słów, scen, udział każdej postaci |
+| Eksport PDF | Server-side przez Puppeteer; polskie znaki, strona tytułowa |
+| Eksport Fountain | Format `.fountain` (Final Draft, Highland) |
+| Eksport DOCX | Edytowalny dokument Word |
+| Import tekstu | Parsowanie formatu IMIĘ: kwestia / INT. nagłówek |
 | Skróty klawiszowe | Szybki dostęp do postaci i trybów pisania |
 
 ---
@@ -246,10 +256,9 @@ poprawne polskie znaki diakrytyczne).
 ## Skróty klawiszowe
 
 | Skrót | Działanie |
-|-------|-----------|
+|-------|----------|
 | `Alt` + `1` … `9` | Wybierz 1.–9. postać z listy |
 | `Alt` + `0` | Tryb Narratora |
-| `Alt` + `S` | Tryb Sceny |
 | `Enter` | Dodaj kwestię (w polu kompozytora) |
 | `Shift` + `Enter` | Nowa linia w kwestii (bez wysyłania) |
 | `Enter` | Zatwierdź edycję inline |
@@ -272,11 +281,6 @@ Testy obejmują:
 - generator HTML do PDF (`buildScreenplayHtml`) — escaping, typy kwestii,
   obsługę pustego scenariusza
 
-```
-Test Suites: 2 passed
-Tests:       23 passed
-```
-
 ### Frontend
 
 ```bash
@@ -288,13 +292,7 @@ npm run test:watch    # tryb interaktywny (watch)
 Testy obejmują:
 - `editorReducer` — wszystkie akcje, przypadki graniczne
 - `Composer` — tryby, warunki blokady, obsługa klawiatury
-- `Script` — renderowanie, edycja inline, usuwanie, zmiana kolejności
-- `formatRelative`, `pluralPl`, `wordCount` — funkcje formatujące
-
-```
-Test Files: 4 passed
-Tests:      35 passed
-```
+- `Script` — renderowanie, edycja inline, usuwanie
 
 ---
 
@@ -306,12 +304,14 @@ Tests:      35 passed
 | Frontend | TypeScript | 5.x |
 | Frontend | Vite (bundler) | 5.x |
 | Frontend | Vitest + Testing Library | 1.x |
+| Frontend | @dnd-kit | 6/8.x |
 | Backend | NestJS | 10.x |
 | Backend | TypeScript | 5.x |
 | Backend | Prisma ORM | 5.x |
 | Backend | Jest | 29.x |
 | Baza danych | PostgreSQL | 15 |
 | PDF | Puppeteer | 21.x |
+| DOCX | docx | 8.x |
 | Konteneryzacja | Docker Compose | 2.x |
 
 ---
@@ -324,50 +324,49 @@ Tests:      35 passed
 │
 ├── backend/
 │   ├── .env.example            # szablon konfiguracji
-│   ├── .env                    # konfiguracja lokalna (nie w git)
 │   ├── package.json
-│   ├── tsconfig.json
 │   ├── prisma/
-│   │   └── schema.prisma       # modele: Project, Character, DialogueLine
+│   │   └── schema.prisma       # modele: Project, Scene, DialogueLine, Comment, LineVersion
 │   └── src/
-│       ├── main.ts             # bootstrap NestJS, CORS, ValidationPipe
+│       ├── main.ts
 │       ├── app.module.ts
-│       ├── prisma/             # PrismaService
+│       ├── prisma/
 │       └── projects/
-│           ├── projects.controller.ts   # wszystkie endpointy REST
-│           ├── projects.service.ts      # logika biznesowa
-│           ├── projects.service.spec.ts # testy jednostkowe serwisu
-│           ├── pdf.service.ts           # generowanie PDF (Puppeteer)
-│           ├── pdf-template.ts          # builder HTML (testowalny)
-│           ├── pdf-template.spec.ts     # testy HTML
-│           ├── screenplay.constants.ts  # paleta kolorów, typy linii
-│           └── dto/                     # walidacja wejścia (class-validator)
+│           ├── projects.controller.ts
+│           ├── projects.service.ts
+│           ├── projects.service.spec.ts
+│           ├── pdf.service.ts
+│           ├── pdf-template.ts
+│           ├── pdf-template.spec.ts
+│           ├── fountain-export.ts
+│           ├── docx-export.ts
+│           ├── text-import.ts
+│           ├── screenplay.constants.ts
+│           └── dto/
 │
 └── frontend/
     ├── package.json
-    ├── vite.config.ts          # Vite + konfiguracja Vitest
+    ├── vite.config.ts
     └── src/
         ├── main.tsx
-        ├── App.tsx             # ekran startowy, lista projektów
-        ├── types.ts            # wszystkie interfejsy TypeScript
-        ├── api.ts              # klient axios
-        ├── reducer.ts          # editorReducer (useReducer)
-        ├── reducer.test.ts     # testy reducera
-        ├── styles.css          # system designu (CSS variables)
+        ├── App.tsx
+        ├── types.ts
+        ├── api.ts
+        ├── reducer.ts
+        ├── reducer.test.ts
+        ├── styles.css
         ├── hooks/
-        │   └── useToasts.ts    # hook dla powiadomień
         ├── utils/
-        │   ├── format.ts       # formatRelative, pluralPl, wordCount
-        │   └── format.test.ts
-        ├── test/
-        │   └── setup.ts        # konfiguracja Testing Library
         └── components/
-            ├── Editor.tsx      # główny edytor (useReducer + API)
-            ├── Sidebar.tsx     # lista postaci, tryby pisania
-            ├── Script.tsx      # widok scenariusza (edycja, kolejność)
-            ├── Composer.tsx    # pole wprowadzania kwestii
-            ├── StatsPanel.tsx  # panel statystyk
-            ├── Toasts.tsx      # powiadomienia
+            ├── Editor.tsx
+            ├── Sidebar.tsx
+            ├── Script.tsx
+            ├── Composer.tsx
+            ├── CommentPanel.tsx
+            ├── HistoryModal.tsx
+            ├── ImportModal.tsx
+            ├── StatsPanel.tsx
+            ├── Toasts.tsx
             ├── Composer.test.tsx
             └── Script.test.tsx
 ```
@@ -376,32 +375,38 @@ Tests:      35 passed
 
 ## API — lista endpointów
 
-Wszystkie endpointy zwracają i przyjmują JSON. Serwer działa domyślnie
-na `http://localhost:3000`.
-
 | Metoda | Ścieżka | Opis |
 |--------|---------|------|
-| `GET` | `/projects` | Lista projektów (z liczbą kwestii) |
-| `POST` | `/projects` | Nowy projekt `{ "title": "..." }` |
-| `GET` | `/projects/:id` | Projekt z postaciami i kwestiami |
-| `PUT` | `/projects/:id` | Zmiana tytułu `{ "title": "..." }` |
-| `DELETE` | `/projects/:id` | Usuń projekt (kaskadowo usuwa postaci i kwestie) |
-| `POST` | `/projects/:id/characters` | Nowa postać `{ "name": "...", "color": "#..." }` |
-| `PATCH` | `/projects/:id/characters/:charId` | Zmień nazwę/kolor `{ "name"?, "color"? }` |
+| `GET` | `/projects` | Lista projektów |
+| `POST` | `/projects` | Nowy projekt |
+| `GET` | `/projects/:id` | Projekt z scenami i kwestiami |
+| `PUT` | `/projects/:id` | Zmiana tytułu |
+| `DELETE` | `/projects/:id` | Usuń projekt |
+| `POST` | `/projects/:id/characters` | Nowa postać |
+| `PATCH` | `/projects/:id/characters/:charId` | Zmień nazwę/kolor |
 | `DELETE` | `/projects/:id/characters/:charId` | Usuń postać |
-| `POST` | `/projects/:id/lines` | Nowa kwestia `{ "text", "type", "characterId"? }` |
-| `PATCH` | `/projects/:id/lines/:lineId` | Edytuj treść `{ "text": "..." }` |
-| `PATCH` | `/projects/:id/lines/reorder` | Zmień kolejność `{ "orderedIds": [...] }` |
-| `DELETE` | `/projects/:id/lines/:lineId` | Usuń kwestię |
-| `GET` | `/projects/:id/export/pdf` | Pobierz scenariusz jako PDF |
-
-**Typy kwestii** (`type`): `"dialogue"` · `"narrator"` · `"scene"`
+| `POST` | `/projects/:id/scenes` | Nowa scena |
+| `PUT` | `/projects/:id/scenes/:sceneId` | Edytuj nagłówek |
+| `DELETE` | `/projects/:id/scenes/:sceneId` | Usuń scenę |
+| `PATCH` | `/projects/:id/scenes/reorder` | Zmień kolejność scen |
+| `POST` | `/projects/:id/scenes/:sceneId/lines` | Nowa kwestia |
+| `PATCH` | `/projects/:id/scenes/:sceneId/lines/:lineId` | Edytuj kwestię |
+| `DELETE` | `/projects/:id/scenes/:sceneId/lines/:lineId` | Usuń kwestię |
+| `PATCH` | `/projects/:id/scenes/:sceneId/lines/reorder` | Zmień kolejność kwestii |
+| `GET` | `/projects/:id/lines/:lineId/history` | Historia zmian kwestii |
+| `POST` | `/projects/:id/lines/:lineId/comments` | Dodaj komentarz |
+| `PATCH` | `/projects/:id/comments/:commentId/resolve` | Oznacz komentarz |
+| `DELETE` | `/projects/:id/comments/:commentId` | Usuń komentarz |
+| `POST` | `/projects/:id/import` | Importuj tekst |
+| `GET` | `/projects/:id/export/pdf` | Eksport PDF |
+| `GET` | `/projects/:id/export/fountain` | Eksport Fountain |
+| `GET` | `/projects/:id/export/docx` | Eksport DOCX |
 
 ---
 
 ## Rozwiązywanie problemów
 
-### „Cannot connect to Docker daemon"
+### „Cannot connect to Docker daemon”
 Upewnij się, że Docker Desktop jest uruchomiony, lub uruchom usługę:
 ```bash
 sudo systemctl start docker   # Linux
@@ -412,15 +417,7 @@ sudo systemctl start docker   # Linux
 2. Jeśli nie — uruchom: `docker compose up -d`
 3. Sprawdź czy port 5432 nie jest zajęty: `lsof -i :5432`
 
-### „P1001: Can't reach database server"
-Najprawdopodobniej baza nie zdążyła jeszcze wystartować. Zaczekaj kilka sekund
-i spróbuj ponownie. Ewentualnie sprawdź logi:
-```bash
-docker compose logs postgres
-```
-
 ### PDF się nie generuje / błąd Puppeteer
-Chromium może wymagać dodatkowych bibliotek systemowych na Linuksie:
 ```bash
 # Ubuntu / Debian
 sudo apt-get install -y \
@@ -428,20 +425,8 @@ sudo apt-get install -y \
   libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
   libxrandr2 libglib2.0-0 libpango-1.0-0 libcairo2
 
-# Następnie przeinstaluj puppeteer
 cd backend && npm install
 ```
-
-### Port 5173 lub 3000 jest zajęty
-Zmień port w `.env` (backend):
-```
-PORT=3001
-```
-lub zatrzymaj inny proces: `kill $(lsof -ti :3000)`
-
-### Powolne pierwsze uruchomienie
-Puppeteer podczas `npm install` pobiera Chromium (~170 MB). Jest to jednorazowe.
-Kolejne instalacje korzystają z cache.
 
 ### Jak całkowicie zresetować bazę danych
 ```bash
