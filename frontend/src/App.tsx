@@ -47,7 +47,7 @@ export default function App() {
 
   async function handleDelete(id: string, title: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm(`Usunąć projekt „${title}"? Tej operacji nie można cofnąć.`)) return;
+    if (!confirm(`Usunąć projekt „${title}”? Tej operacji nie można cofnąć.`)) return;
     try {
       await deleteProject(id);
       if (activeProjectId === id) setActiveProjectId(null);
@@ -121,7 +121,7 @@ export default function App() {
                 <span className="project-name">{p.title}</span>
                 <span className="project-meta">
                   {p.characters.length} {pluralChars(p.characters.length)} ·{' '}
-                  {p._count.lines} {pluralLines(p._count.lines)} · {formatRelative(p.updatedAt)}
+                  {p._count.scenes} {pluralScenes(p._count.scenes)} · {formatRelative(p.updatedAt)}
                 </span>
               </div>
               <div className="project-card-side">
@@ -160,8 +160,8 @@ function pluralChars(n: number): string {
   return 'postaci';
 }
 
-function pluralLines(n: number): string {
-  if (n === 1) return 'kwestia';
-  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return 'kwestie';
-  return 'kwestii';
+function pluralScenes(n: number): string {
+  if (n === 1) return 'scena';
+  if (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) return 'sceny';
+  return 'scen';
 }

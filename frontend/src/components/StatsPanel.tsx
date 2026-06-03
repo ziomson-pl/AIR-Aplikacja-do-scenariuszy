@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Project } from '../types';
+import type { Project, DialogueLine } from '../types';
 import { pluralPl, wordCount } from '../utils/format';
 
 interface Props {
@@ -9,10 +9,10 @@ interface Props {
 
 export function StatsPanel({ project, onClose }: Props) {
   const stats = useMemo(() => {
-    const dialogue = project.lines.filter((l) => l.type === 'dialogue');
-    const narrator = project.lines.filter((l) => l.type === 'narrator');
-    const scenes = project.lines.filter((l) => l.type === 'scene');
-    const totalWords = project.lines.reduce((sum, l) => sum + wordCount(l.text), 0);
+    const allLines: DialogueLine[] = project.scenes.flatMap((s) => s.lines);
+    const dialogue = allLines.filter((l) => l.type === 'dialogue');
+    const narrator = allLines.filter((l) => l.type === 'narrator');
+    const totalWords = allLines.reduce((sum, l) => sum + wordCount(l.text), 0);
 
     const perCharacter = project.characters
       .map((c) => {
@@ -25,11 +25,11 @@ export function StatsPanel({ project, onClose }: Props) {
     const maxLines = Math.max(1, ...perCharacter.map((c) => c.lineCount));
 
     return {
-      totalLines: project.lines.length,
+      totalLines: allLines.length,
       totalWords,
       dialogueCount: dialogue.length,
       narratorCount: narrator.length,
-      sceneCount: scenes.length,
+      sceneCount: project.scenes.length,
       perCharacter,
       maxLines,
     };

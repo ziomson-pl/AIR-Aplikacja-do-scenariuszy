@@ -1,30 +1,47 @@
-import type { Character, ComposeMode } from '../types';
+import { useState } from 'react';
+import type { Character, ComposeMode, Scene } from '../types';
 
 interface Props {
   composeMode: ComposeMode;
   speaker: Character | null;
   hasCharacters: boolean;
+  activeScene: Scene | null;
   value: string;
+  parenthetical: string;
   onChange: (v: string) => void;
+  onParentheticalChange: (v: string) => void;
   onSubmit: () => void;
 }
 
-const MODE_META: Record<ComposeMode, { label: string; placeholder: string }> = {
-  dialogue: { label: 'KWESTIA', placeholder: 'Wpisz kwestię…' },
-  narrator: { label: 'NARRATOR', placeholder: 'Wpisz didaskalia / opis sceny…' },
-  scene: { label: 'SCENA', placeholder: 'np. WNĘTRZE — KUCHNIA — DZIEŃ' },
+const MODE_PLACEHOLDER: Record<ComposeMode, string> = {
+  dialogue: 'Wpisz kwestię…',
+  narrator: 'Wpisz didaskalia / opis sceny…',
 };
 
-export function Composer({ composeMode, speaker, hasCharacters, value, onChange, onSubmit }: Props) {
+export function Composer({
+  composeMode,
+  speaker,
+  hasCharacters,
+  activeScene,
+  value,
+  parenthetical,
+  onChange,
+  onParentheticalChange,
+  onSubmit,
+}: Props) {
+  const [showParenthetical, setShowParenthetical] = useState(false);
   const needsCharacter = composeMode === 'dialogue' && !hasCharacters;
+  const needsScene = !activeScene;
 
-  const label = composeMode === 'dialogue' ? speaker?.name.toUpperCase() ?? MODE_META.dialogue.label : MODE_META[composeMode].label;
+  const label =
+    composeMode === 'dialogue'
+      ? (speaker?.name.toUpperCase() ?? 'KWESTIA')
+      : 'NARRATOR';
+
   const accent =
     composeMode === 'dialogue'
-      ? speaker?.color ?? 'var(--accent)'
-      : composeMode === 'narrator'
-        ? 'var(--narrator)'
-        : 'var(--scene)';
+      ? (speaker?.color ?? 'var(--accent)')
+      : 'var(--narrator)';
 
   if (needsCharacter) {
     return (
@@ -36,34 +53,73 @@ export function Composer({ composeMode, speaker, hasCharacters, value, onChange,
     );
   }
 
+  if (needsScene) {
+    return (
+      <div className="composer composer--blocked">
+        <span className="composer-hint">
+          ➜ Dodaj scenę, aby zacząć pisać.
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <form
-      className={`composer composer--${composeMode}`}
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit();
-      }}
-    >
-      <span className="composer-badge" style={{ background: accent }}>
-        {label}
-      </span>
-      <textarea
-        className="composer-input"
-        value={value}
-        rows={1}
-        placeholder={MODE_META[composeMode].placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            onSubmit();
-          }
+    <div className={`composer composer--${composeMode}`}>
+      {activeScene && (
+        <div className="composer-scene-label">
+          Dodajesz do: <strong>{activeScene.heading}</strong>
+        </div>
+      )}
+      <form
+        className="composer-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit();
         }}
-        autoFocus
-      />
-      <button className="btn btn-primary composer-send" type="submit" disabled={!value.trim()}>
-        Dodaj ⏎
-      </button>
-    </form>
+      >
+        <span className="composer-badge" style={{ background: accent }}>
+          {label}
+        </span>
+        <div className="composer-inputs">
+          {composeMode === 'dialogue' && showParenthetical && (
+            <input
+              className="composer-parenthetical"
+              value={parenthetical}
+              placeholder="Didaskalia (opcjonalne)…"
+              onChange={(e) => onParentheticalChange(e.target.value)}
+            />
+          )}
+          <textarea
+            className="composer-input"
+            value={value}
+            rows={1}
+            placeholder={MODE_PLACEHOLDER[composeMode]}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                onSubmit();
+              }
+            }}
+            autoFocus
+          />
+        </div>
+        <div className="composer-controls">
+          {composeMode === 'dialogue' && (
+            <button
+              type="button"
+              className={`icon-btn composer-paren-toggle${showParenthetical ? ' active' : ''}`}
+              title="Didaskalia (parenthetical)"
+              onClick={() => setShowParenthetical((v) => !v)}
+            >
+              ( )
+            </button>
+          )}
+          <button className="btn btn-primary composer-send" type="submit" disabled={!value.trim()}>
+            Dodaj ⏎
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
