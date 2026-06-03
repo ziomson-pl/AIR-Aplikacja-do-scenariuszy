@@ -9,8 +9,18 @@ import {
   updateLine,
   deleteLine,
   reorderLines,
+  reorderScenes,
+  addScene,
+  updateScene,
+  deleteScene,
   updateProjectTitle,
+  addComment,
+  resolveComment,
+  deleteComment,
+  importText,
   getPdfUrl,
+  getFountainUrl,
+  getDocxUrl,
 } from '../api';
 import type { ComposeMode } from '../types';
 import { Sidebar } from './Sidebar';
@@ -18,6 +28,7 @@ import { Script } from './Script';
 import { Composer } from './Composer';
 import { StatsPanel } from './StatsPanel';
 import { Toasts } from './Toasts';
+import { ImportModal } from './ImportModal';
 import { useToasts } from '../hooks/useToasts';
 
 interface Props {
@@ -30,14 +41,16 @@ type SaveState = 'idle' | 'saving' | 'saved';
 export function Editor({ projectId, onBack }: Props) {
   const [state, dispatch] = useReducer(editorReducer, initialState);
   const [inputText, setInputText] = useState('');
+  const [parentheticalText, setParentheticalText] = useState('');
   const [statsOpen, setStatsOpen] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
+  const [showImportModal, setShowImportModal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { toasts, notify, dismiss } = useToasts();
 
-  const { project, activeSpeakerId, composeMode } = state;
+  const { project, activeSpeakerId, composeMode, activeSceneId, collapsedScenes } = state;
 
   useEffect(() => {
     dispatch({ type: 'SET_LOADING', payload: true });
@@ -46,11 +59,6 @@ export function Editor({ projectId, onBack }: Props) {
       .catch(() => dispatch({ type: 'SET_ERROR', payload: 'Nie udało się załadować projektu.' }));
   }, [projectId]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [project?.lines.length]);
-
-  /** Run a persisting action while reflecting save status; report failures as toasts. */
   const persist = useCallback(
     async <T,>(fn: () => Promise<T>, errorMsg: string): Promise<T | undefined> => {
       try {
@@ -67,54 +75,120 @@ export function Editor({ projectId, onBack }: Props) {
     [notify],
   );
 
-  // ----- line actions -----
+  async function handleAddScene(heading: string) {
+    const scene = await persist(() => addScene(projectId, heading), 'Nie udało się dodać sceny.');
+    if (scene) {
+      dispatch({ type: 'ADD_SCENE', payload: scene });
+      dispatch({ type: 'SET_ACTIVE_SCENE', payload: scene.id });
+    }
+  }
+
+  async function handleUpdateSceneHeading(sceneId: string, heading: string) {
+    const scene = await persist(
+      () => updateScene(projectId, sceneId, heading),
+      'Nie udało się zmienić nagłówka sceny.',
+    );
+    if (scene) dispatch({ type: 'UPDATE_SCENE', payload: scene });
+  }
+
+  async function handleDeleteScene(sceneId: string) {
+    const scene = project?.scenes.find((s) => s.id === sceneId);
+    if (
+      !confirm(
+        `Usunąć scenę „${scene?.heading}”? Wszystkie kwestie w tej scenie zostaną usunięte.`,
+      )
+    ) {
+      return;
+    }
+    const ok = await persist(() => deleteScene(projectId, sceneId), 'Nie udało się usunąć sceny.');
+    if (ok !== undefined) dispatch({ type: 'REMOVE_SCENE', payload: sceneId });
+  }
+
+  async function handleReorderScenes(orderedIds: string[]) {
+    const updated = await persist(
+      () => reorderScenes(projectId, orderedIds),
+      'Nie udało się zmienić kolejności scen.',
+    );
+    if (updated) dispatch({ type: 'REORDER_SCENES', payload: updated.scenes });
+  }
 
   async function submitLine() {
     const text = inputText.trim();
     if (!text || !project) return;
+
+    const sceneId = activeSceneId;
+    if (!sceneId) {
+      notify('Najpierw wybierz scenę.', 'info');
+      return;
+    }
+
     if (composeMode === 'dialogue' && !activeSpeakerId) {
       notify('Najpierw dodaj i wybierz postać.', 'info');
       return;
     }
+
     const line = await persist(
-      () => addLine(projectId, text, composeMode, composeMode === 'dialogue' ? activeSpeakerId : null),
+      () =>
+        addLine(projectId, sceneId, {
+          text,
+          type: composeMode,
+          characterId: composeMode === 'dialogue' ? activeSpeakerId : null,
+          parenthetical: parentheticalText.trim() || null,
+        }),
       'Nie udało się dodać kwestii.',
     );
     if (line) {
-      dispatch({ type: 'ADD_LINE', payload: line });
+      dispatch({ type: 'ADD_LINE', payload: { sceneId, line } });
       setInputText('');
+      setParentheticalText('');
     }
   }
 
-  async function handleEditLine(lineId: string, text: string) {
-    const line = await persist(() => updateLine(projectId, lineId, text), 'Nie udało się zapisać zmiany.');
-    if (line) dispatch({ type: 'UPDATE_LINE', payload: line });
+  async function handleEditLine(lineId: string, sceneId: string, text: string) {
+    const line = await persist(
+      () => updateLine(projectId, sceneId, lineId, { text }),
+      'Nie udało się zapisać zmiany.',
+    );
+    if (line) dispatch({ type: 'UPDATE_LINE', payload: { sceneId, line } });
   }
 
-  async function handleDeleteLine(lineId: string) {
-    const ok = await persist(() => deleteLine(projectId, lineId), 'Nie udało się usunąć kwestii.');
-    if (ok !== undefined) dispatch({ type: 'REMOVE_LINE', payload: lineId });
+  async function handleDeleteLine(lineId: string, sceneId: string) {
+    const ok = await persist(
+      () => deleteLine(projectId, sceneId, lineId),
+      'Nie udało się usunąć kwestii.',
+    );
+    if (ok !== undefined) dispatch({ type: 'REMOVE_LINE', payload: { sceneId, lineId } });
   }
 
-  async function handleMoveLine(lineId: string, dir: -1 | 1) {
-    if (!project) return;
-    const lines = project.lines;
-    const idx = lines.findIndex((l) => l.id === lineId);
-    const target = idx + dir;
-    if (idx < 0 || target < 0 || target >= lines.length) return;
-    const ids = lines.map((l) => l.id);
-    [ids[idx], ids[target]] = [ids[target], ids[idx]];
-    const updated = await persist(() => reorderLines(projectId, ids), 'Nie udało się zmienić kolejności.');
-    if (updated) dispatch({ type: 'REORDER_LINES', payload: updated.lines });
+  async function handleReorderLines(sceneId: string, orderedIds: string[]) {
+    const updated = await persist(
+      () => reorderLines(projectId, sceneId, orderedIds),
+      'Nie udało się zmienić kolejności kwestii.',
+    );
+    if (updated) dispatch({ type: 'REORDER_LINES', payload: { sceneId, lines: updated.lines } });
   }
 
-  // ----- character actions -----
+  async function handleRestoreLine(
+    lineId: string,
+    sceneId: string,
+    text: string,
+    parenthetical: string | null,
+  ) {
+    const line = await persist(
+      () => updateLine(projectId, sceneId, lineId, { text, parenthetical }),
+      'Nie udało się przywrócić wersji.',
+    );
+    if (line) {
+      dispatch({ type: 'UPDATE_LINE', payload: { sceneId, line } });
+      notify('Wersja przywrócona.', 'success');
+    }
+  }
 
   async function handleAddCharacter(name: string) {
     const char = await persist(() => addCharacter(projectId, name), 'Nie udało się dodać postaci.');
     if (char) {
       dispatch({ type: 'ADD_CHARACTER', payload: char });
-      notify(`Dodano postać „${char.name}".`, 'success');
+      notify(`Dodano postać „${char.name}”.`, 'success');
     }
   }
 
@@ -128,20 +202,88 @@ export function Editor({ projectId, onBack }: Props) {
 
   async function handleDeleteCharacter(charId: string) {
     const char = project?.characters.find((c) => c.id === charId);
-    const linesUsing = project?.lines.filter((l) => l.characterId === charId).length ?? 0;
+    const linesCount =
+      project?.scenes.reduce(
+        (sum, scene) => sum + scene.lines.filter((l) => l.characterId === charId).length,
+        0,
+      ) ?? 0;
     if (
-      linesUsing > 0 &&
+      linesCount > 0 &&
       !confirm(
-        `Postać „${char?.name}" ma ${linesUsing} kwestii. Po usunięciu pozostaną one jako „nieznana postać". Kontynuować?`,
+        `Postać „${char?.name}” ma ${linesCount} kwestii. Po usunięciu pozostaną jako „nieznana postać”. Kontynuować?`,
       )
     ) {
       return;
     }
-    const ok = await persist(() => deleteCharacter(projectId, charId), 'Nie udało się usunąć postaci.');
+    const ok = await persist(
+      () => deleteCharacter(projectId, charId),
+      'Nie udało się usunąć postaci.',
+    );
     if (ok !== undefined) dispatch({ type: 'REMOVE_CHARACTER', payload: charId });
   }
 
-  // ----- title -----
+  async function handleAddComment(lineId: string, text: string) {
+    const scene = project?.scenes.find((s) => s.lines.some((l) => l.id === lineId));
+    if (!scene) return;
+    const comment = await persist(
+      () => addComment(projectId, lineId, text),
+      'Nie udało się dodać komentarza.',
+    );
+    if (comment) {
+      dispatch({ type: 'ADD_COMMENT', payload: { lineId, sceneId: scene.id, comment } });
+    }
+  }
+
+  async function handleResolveComment(commentId: string) {
+    let sceneId = '';
+    let lineId = '';
+    for (const scene of project?.scenes ?? []) {
+      for (const line of scene.lines) {
+        if ((line.comments ?? []).some((c) => c.id === commentId)) {
+          sceneId = scene.id;
+          lineId = line.id;
+        }
+      }
+    }
+    const updated = await persist(
+      () => resolveComment(projectId, commentId),
+      'Nie udało się oznaczyć komentarza.',
+    );
+    if (updated && sceneId && lineId) {
+      dispatch({ type: 'RESOLVE_COMMENT', payload: { lineId, sceneId, commentId } });
+    }
+  }
+
+  async function handleDeleteComment(commentId: string) {
+    let sceneId = '';
+    let lineId = '';
+    for (const scene of project?.scenes ?? []) {
+      for (const line of scene.lines) {
+        if ((line.comments ?? []).some((c) => c.id === commentId)) {
+          sceneId = scene.id;
+          lineId = line.id;
+        }
+      }
+    }
+    const ok = await persist(
+      () => deleteComment(projectId, commentId),
+      'Nie udało się usunąć komentarza.',
+    );
+    if (ok !== undefined && sceneId && lineId) {
+      dispatch({ type: 'REMOVE_COMMENT', payload: { lineId, sceneId, commentId } });
+    }
+  }
+
+  async function handleImport(text: string) {
+    const updated = await persist(
+      () => importText(projectId, text),
+      'Nie udało się zaimportować tekstu.',
+    );
+    if (updated) {
+      dispatch({ type: 'LOAD_PROJECT', payload: updated });
+      notify('Import zakończony pomyślnie.', 'success');
+    }
+  }
 
   function startEditTitle() {
     if (!project) return;
@@ -157,8 +299,6 @@ export function Editor({ projectId, onBack }: Props) {
     await persist(() => updateProjectTitle(projectId, title), 'Nie udało się zmienić tytułu.');
   }
 
-  // ----- keyboard shortcuts (Alt+1..9 speaker, Alt+0 narrator, Alt+S scene) -----
-
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!e.altKey || !project) return;
@@ -172,16 +312,11 @@ export function Editor({ projectId, onBack }: Props) {
       } else if (e.key === '0') {
         e.preventDefault();
         dispatch({ type: 'SET_COMPOSE_MODE', payload: 'narrator' });
-      } else if (e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        dispatch({ type: 'SET_COMPOSE_MODE', payload: 'scene' });
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [project]);
-
-  // ----- render -----
 
   if (state.loading) {
     return <div className="editor-loading">Ładowanie projektu…</div>;
@@ -198,6 +333,7 @@ export function Editor({ projectId, onBack }: Props) {
   }
 
   const activeSpeaker = project.characters.find((c) => c.id === activeSpeakerId) ?? null;
+  const activeScene = project.scenes.find((s) => s.id === activeSceneId) ?? null;
 
   return (
     <div className="editor-layout">
@@ -206,14 +342,20 @@ export function Editor({ projectId, onBack }: Props) {
       <Sidebar
         project={project}
         activeSpeakerId={activeSpeakerId}
+        activeSceneId={activeSceneId}
         composeMode={composeMode}
         onSetSpeaker={(id) => dispatch({ type: 'SET_ACTIVE_SPEAKER', payload: id })}
         onSetMode={(m: ComposeMode) => dispatch({ type: 'SET_COMPOSE_MODE', payload: m })}
         onAddCharacter={handleAddCharacter}
         onUpdateCharacter={handleUpdateCharacter}
         onDeleteCharacter={handleDeleteCharacter}
+        onAddScene={handleAddScene}
+        onSetActiveScene={(id) => dispatch({ type: 'SET_ACTIVE_SCENE', payload: id })}
         onBack={onBack}
         pdfUrl={getPdfUrl(projectId)}
+        fountainUrl={getFountainUrl(projectId)}
+        docxUrl={getDocxUrl(projectId)}
+        onImport={() => setShowImportModal(true)}
       />
 
       <div className="editor-main">
@@ -253,10 +395,26 @@ export function Editor({ projectId, onBack }: Props) {
         </div>
 
         <Script
-          lines={project.lines}
+          scenes={project.scenes}
+          activeSceneId={activeSceneId}
+          collapsedScenes={collapsedScenes}
+          projectId={projectId}
+          onToggleCollapse={(sceneId) =>
+            dispatch({ type: 'TOGGLE_SCENE_COLLAPSE', payload: sceneId })
+          }
+          onSetActiveScene={(sceneId) =>
+            dispatch({ type: 'SET_ACTIVE_SCENE', payload: sceneId })
+          }
+          onUpdateSceneHeading={handleUpdateSceneHeading}
+          onDeleteScene={handleDeleteScene}
           onEditLine={handleEditLine}
           onDeleteLine={handleDeleteLine}
-          onMoveLine={handleMoveLine}
+          onReorderScenes={handleReorderScenes}
+          onReorderLines={handleReorderLines}
+          onAddComment={handleAddComment}
+          onResolveComment={handleResolveComment}
+          onDeleteComment={handleDeleteComment}
+          onRestoreLine={handleRestoreLine}
         />
         <div ref={bottomRef} />
 
@@ -264,13 +422,23 @@ export function Editor({ projectId, onBack }: Props) {
           composeMode={composeMode}
           speaker={activeSpeaker}
           hasCharacters={project.characters.length > 0}
+          activeScene={activeScene}
           value={inputText}
+          parenthetical={parentheticalText}
           onChange={setInputText}
+          onParentheticalChange={setParentheticalText}
           onSubmit={submitLine}
         />
       </div>
 
       {statsOpen && <StatsPanel project={project} onClose={() => setStatsOpen(false)} />}
+
+      {showImportModal && (
+        <ImportModal
+          onImport={handleImport}
+          onClose={() => setShowImportModal(false)}
+        />
+      )}
     </div>
   );
 }
