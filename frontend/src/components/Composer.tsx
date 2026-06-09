@@ -15,10 +15,17 @@ const MODE_META: Record<ComposeMode, { label: string; placeholder: string }> = {
   scene: { label: 'SCENA', placeholder: 'np. WNĘTRZE — KUCHNIA — DZIEŃ' },
 };
 
+function truncateLabel(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}...`;
+}
+
 export function Composer({ composeMode, speaker, hasCharacters, value, onChange, onSubmit }: Props) {
   const needsCharacter = composeMode === 'dialogue' && !hasCharacters;
 
-  const label = composeMode === 'dialogue' ? speaker?.name.toUpperCase() ?? MODE_META.dialogue.label : MODE_META[composeMode].label;
+  const label = composeMode === 'dialogue'
+    ? truncateLabel(speaker?.name.toUpperCase() ?? MODE_META.dialogue.label, 18)
+    : MODE_META[composeMode].label;
   const accent =
     composeMode === 'dialogue'
       ? speaker?.color ?? 'var(--accent)'

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { DialogueLine } from '../types';
 
 interface Props {
@@ -8,19 +8,33 @@ interface Props {
   onMoveLine: (id: string, dir: -1 | 1) => void;
 }
 
+function truncateLabel(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}...`;
+}
+
 export function Script({ lines, onEditLine, onDeleteLine, onMoveLine }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  const cancelOnBlurRef = useRef(false);
 
   function startEdit(line: DialogueLine) {
     setEditingId(line.id);
     setDraft(line.text);
+    cancelOnBlurRef.current = false;
   }
 
   function commit(id: string, original: string) {
     setEditingId(null);
+    cancelOnBlurRef.current = false;
     const text = draft.trim();
     if (text && text !== original) onEditLine(id, text);
+  }
+
+  function cancelEdit(original: string) {
+    setEditingId(null);
+    setDraft(original);
+    cancelOnBlurRef.current = false;
   }
 
   if (lines.length === 0) {
@@ -46,6 +60,7 @@ export function Script({ lines, onEditLine, onDeleteLine, onMoveLine }: Props) {
             <div key={line.id} className={`line line--${line.type}`}>
               <div className="line-controls">
                 <button
+                  type="button"
                   className="line-ctrl"
                   title="W górę"
                   disabled={i === 0}
@@ -54,6 +69,7 @@ export function Script({ lines, onEditLine, onDeleteLine, onMoveLine }: Props) {
                   ↑
                 </button>
                 <button
+                  type="button"
                   className="line-ctrl"
                   title="W dół"
                   disabled={i === lines.length - 1}
@@ -62,8 +78,20 @@ export function Script({ lines, onEditLine, onDeleteLine, onMoveLine }: Props) {
                   ↓
                 </button>
                 <button
+                  type="button"
+                  className="line-ctrl"
+                  title="Edytuj"
+                  onClick={() => startEdit(line)}
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
                   className="line-ctrl line-ctrl--danger"
                   title="Usuń"
+                  onMouseDown={() => {
+                    cancelOnBlurRef.current = true;
+                  }}
                   onClick={() => onDeleteLine(line.id)}
                 >
                   ✕
@@ -76,26 +104,40 @@ export function Script({ lines, onEditLine, onDeleteLine, onMoveLine }: Props) {
                     className="line-speaker"
                     style={{ color: line.character?.color ?? undefined }}
                   >
-                    {line.character?.name?.toUpperCase() ?? 'NIEZNANA POSTAĆ'}
+                    {truncateLabel(line.character?.name?.toUpperCase() ?? 'NIEZNANA POSTAĆ', 18)}
                   </p>
                 )}
 
                 {editing ? (
-                  <textarea
-                    className="line-edit"
-                    value={draft}
-                    autoFocus
-                    rows={Math.max(1, draft.split('\n').length)}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onBlur={() => commit(line.id, line.text)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
+                  <>
+                    <textarea
+                      className="line-edit"
+                      value={draft}
+                      autoFocus
+                      rows={6}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onBlur={() => {
+                        if (cancelOnBlurRef.current) {
+                          cancelOnBlurRef.current = false;
+                          return;
+                        }
                         commit(line.id, line.text);
-                      }
-                      if (e.key === 'Escape') setEditingId(null);
-                    }}
-                  />
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          commit(line.id, line.text);
+                        }
+
+                        if (e.key === 'Escape') {
+                          e.preventDefault();
+                          cancelOnBlurRef.current = true;
+                          cancelEdit(line.text);
+                        }
+                      }}
+                    />
+                    <div className="line-edit-hint">Enter = zapisz, Esc = anuluj. Shift+Enter pozwala na nową linię.</div>
+                  </>
                 ) : (
                   <p
                     className="line-text"

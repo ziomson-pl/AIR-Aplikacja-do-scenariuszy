@@ -45,8 +45,9 @@ export async function updateCharacter(
   return data;
 }
 
-export async function deleteCharacter(projectId: string, charId: string): Promise<void> {
+export async function deleteCharacter(projectId: string, charId: string): Promise<boolean> {
   await api.delete(`/projects/${projectId}/characters/${charId}`);
+  return true;
 }
 
 export async function addLine(
@@ -72,8 +73,9 @@ export async function updateLine(
   return data;
 }
 
-export async function deleteLine(projectId: string, lineId: string): Promise<void> {
+export async function deleteLine(projectId: string, lineId: string): Promise<boolean> {
   await api.delete(`/projects/${projectId}/lines/${lineId}`);
+  return true;
 }
 
 export async function reorderLines(projectId: string, orderedIds: string[]): Promise<Project> {

@@ -93,7 +93,7 @@ export function Editor({ projectId, onBack }: Props) {
 
   async function handleDeleteLine(lineId: string) {
     const ok = await persist(() => deleteLine(projectId, lineId), 'Nie udało się usunąć kwestii.');
-    if (ok !== undefined) dispatch({ type: 'REMOVE_LINE', payload: lineId });
+    if (ok) dispatch({ type: 'REMOVE_LINE', payload: lineId });
   }
 
   async function handleMoveLine(lineId: string, dir: -1 | 1) {
@@ -138,7 +138,7 @@ export function Editor({ projectId, onBack }: Props) {
       return;
     }
     const ok = await persist(() => deleteCharacter(projectId, charId), 'Nie udało się usunąć postaci.');
-    if (ok !== undefined) dispatch({ type: 'REMOVE_CHARACTER', payload: charId });
+    if (ok) dispatch({ type: 'REMOVE_CHARACTER', payload: charId });
   }
 
   // ----- title -----
