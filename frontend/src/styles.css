@@ -455,10 +455,10 @@ body {
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
   padding: 24px 40px;
-  min-height: 100%;
+  height: fit-content;
 }
 
-.line { position: relative; display: flex; gap: 8px; padding: 2px 0; border-radius: 6px; min-width: 0; overflow: hidden; }
+.line { position: relative; display: flex; gap: 8px; padding: 2px 0; border-radius: 6px; min-width: 0; overflow: visible; }
 .line:hover { background: rgba(99, 102, 241, 0.035); }
 .line-body { flex: 1; min-width: 0; overflow-x: hidden; }
 
@@ -497,7 +497,8 @@ body {
 /* dialogue */
 .line--dialogue { flex-direction: column; gap: 0; margin: 10px 0; }
 .line-speaker {
-  display: inline-block;
+  display: block;
+  width: 100%;
   max-width: 100%;
   font-family: var(--font-script);
   font-weight: 700;
@@ -547,6 +548,7 @@ body {
   color: var(--scene);
   border-left: 3px solid var(--scene);
   padding-left: 12px;
+
 }
 
 .line-edit {
